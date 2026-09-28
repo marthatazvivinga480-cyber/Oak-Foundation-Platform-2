@@ -432,22 +432,10 @@ export const takeaways = [
 ];
 export const resources = [
   {
-    id: 'opening-presentation',
-    name: 'Opening Plenary Presentation',
-    detail: 'PDF · 3.2 MB · Day 1',
+    id: 'platform-demo-sample',
+    name: 'Sample PDF - Demo only',
+    detail: 'PDF · Download test · Not official event material',
   },
-  {
-    id: 'portfolio-overview',
-    name: 'OAK Portfolio Overview 2024–26',
-    detail: 'PDF · 1.8 MB · Day 2',
-  },
-  { id: 'action-workbook', name: 'Action Planning Workbook', detail: 'DOCX · 0.9 MB · Day 3' },
-  {
-    id: 'partner-directory',
-    name: 'Partner Contact Directory',
-    detail: 'XLSX · 0.4 MB · All Days',
-  },
-  { id: 'photo-gallery', name: 'Photo Gallery (High Res)', detail: 'ZIP · 184 MB · All Days' },
 ];
 export const initials = (name: string) =>
   name

@@ -21,9 +21,11 @@ import { Dropdown } from './dropdown';
 export function Programme({
   sessions,
   initialNotes,
+  author,
 }: {
   sessions: Session[];
   initialNotes: Note[];
+  author: { name: string; organisation: string };
 }) {
   const params = useSearchParams();
   const router = useRouter();
@@ -305,23 +307,25 @@ export function Programme({
           onClose={() => setAdding(false)}
         >
           <form className="form-stack" onSubmit={save}>
+            <p className="muted" id="note-author-help">
+              Notes are saved under your current registration. Your name and organisation cannot be changed here.
+            </p>
             <label className="field">
               <span>Your name</span>
               <input
                 name="name"
-                defaultValue={editing?.name}
-                required
-                maxLength={160}
-                autoComplete="name"
+                value={author.name}
+                readOnly
+                aria-describedby="note-author-help"
               />
             </label>
             <label className="field">
               <span>Organisation</span>
               <input
                 name="organisation"
-                defaultValue={editing?.organisation}
-                required
-                maxLength={160}
+                value={author.organisation}
+                readOnly
+                aria-describedby="note-author-help"
               />
             </label>
             <div className="field">
