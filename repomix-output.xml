@@ -1,0 +1,6014 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+public/
+  gallery/
+    1.jpg
+    2.jpg
+    3.jpg
+    4.jpg
+    5.jpg
+    6.jpg
+  favicon.svg
+  oak-brand.png
+scripts/
+  generate-seed.ts
+  http-smoke.mjs
+src/
+  app/
+    api/
+      attendance/
+        route.ts
+      auth/
+        sign-out/
+          route.ts
+      check-in/
+        route.ts
+      demo-check-in/
+        route.ts
+      notes/
+        route.ts
+      register/
+        route.ts
+      resources/
+        [id]/
+          route.ts
+    attendance/
+      page.tsx
+    check-in/
+      page.tsx
+    partners/
+      [id]/
+        page.tsx
+      page.tsx
+    privacy/
+      page.tsx
+    programme/
+      page.tsx
+    qr-code/
+      page.tsx
+    staff/
+      page.tsx
+    error.tsx
+    globals.css
+    layout.tsx
+    loading.tsx
+    not-found.tsx
+    page.tsx
+  components/
+    attendance.tsx
+    check-in.tsx
+    dropdown.tsx
+    partners.tsx
+    programme.tsx
+    registration.tsx
+    shell.tsx
+    staff-login.tsx
+    ui.tsx
+  lib/
+    supabase/
+      admin.ts
+      client.ts
+      config.ts
+      server.ts
+    access.ts
+    api.ts
+    confirmation-email.ts
+    data.ts
+    repository.ts
+    roles.ts
+    types.ts
+    validation.ts
+  proxy.ts
+supabase/
+  migrations/
+    001_event_portal.sql
+    002_requirements.sql
+  seed.sql
+tests/
+  qr.test.ts
+  validation.test.ts
+.env.example
+.gitignore
+.prettierignore
+.prettierrc.json
+AGENTS.md
+CLAUDE.md
+next-env.d.ts
+next.config.ts
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+VERIFICATION.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="public/favicon.svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#182f55"/><text x="16" y="23" text-anchor="middle" font-size="24" font-family="Georgia" fill="white">O</text></svg>
+</file>
+
+<file path="scripts/generate-seed.ts">
+import { writeFileSync } from 'node:fs';
+import { partners, sessions, initialNotes, resources } from '../src/lib/data';
+const sql = (value: unknown) => `'${JSON.stringify(value).replaceAll("'", "''")}'::jsonb`;
+const rows = [
+  '-- Reference-derived sample content. Review before a real event.',
+  '-- Day 2/3 schedules and unspecified partner descriptions are illustrative.',
+];
+for (const [table, data] of [
+  ['partners', partners],
+  ['sessions', sessions],
+] as const)
+  data.forEach((item, index) =>
+    rows.push(
+      `insert into public.${table} (id, position, data) values ('${item.id}', ${index}, ${sql(item)}) on conflict (id) do nothing;`,
+    ),
+  );
+initialNotes.forEach((n) =>
+  rows.push(
+    `insert into public.notes (id, data) values ('${n.id}', ${sql(n)}) on conflict (id) do nothing;`,
+  ),
+);
+resources.forEach((r) =>
+  rows.push(
+    `insert into public.resources (id, name) values ('${r.id}', '${r.name.replaceAll("'", "''")}') on conflict (id) do nothing;`,
+  ),
+);
+writeFileSync('supabase/seed.sql', rows.join('\n') + '\n');
+</file>
+
+<file path="scripts/http-smoke.mjs">
+import assert from 'node:assert/strict';
+const base = 'http://127.0.0.1:3000';
+const home = await fetch(base).then((r) => r.text());
+assert(home.includes('Local demo'), 'Run only against local demo');
+const run = Date.now();
+const roles = ['Partner', 'OAK Staff', 'Coordination Team', 'Presenter', 'Observer'];
+const users = [];
+async function call(path, cookie, body) {
+  const r = await fetch(base + path, {
+    method: body ? 'POST' : 'GET',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  return r;
+}
+for (const [i, role] of roles.entries()) {
+  const r = await call('/api/register', '', {
+    firstName: 'Requirements QA',
+    lastName: String(i),
+    organisation: 'Synthetic Test',
+    email: `requirements-${run}-${i}@example.test`,
+    phone: '+263000000000',
+    role,
+    consent: true,
+    accommodation: 'Test room',
+    travel: 'Test travel',
+  });
+  assert.equal(r.status, 201, await r.clone().text());
+  const { registration } = await r.json();
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  assert.equal(registration.sessionToken, undefined);
+  assert.equal(Boolean(registration.code), role === 'Partner');
+  users.push({ cookie, registration });
+  for (const page of ['/check-in', '/attendance', '/programme', '/partners', '/qr-code']) {
+    const allowed =
+      page === '/qr-code'
+        ? role === 'Partner'
+        : ['/check-in', '/attendance'].includes(page)
+          ? role === 'Coordination Team'
+          : role !== 'Partner';
+    const response = await call(page, cookie);
+    const html = await response.text();
+    const redirected = response.status === 307 || html.includes('NEXT_REDIRECT');
+    assert.equal(redirected, !allowed, `${role} ${page}`);
+  }
+  assert.equal(
+    (await call('/api/attendance', cookie)).status,
+    role === 'Coordination Team' ? 200 : 403,
+  );
+}
+assert.equal((await call('/api/attendance', '')).status, 403);
+const partner = users[0],
+  coordinator = users[2],
+  presenter = users[3];
+const first = await call('/api/check-in', coordinator.cookie, {
+  code: partner.registration.code,
+}).then((r) => r.json());
+assert.equal(first.already, false);
+assert.equal(first.registration.sessionToken, undefined);
+const again = await call('/api/check-in', coordinator.cookie, {
+  code: partner.registration.code,
+}).then((r) => r.json());
+assert.equal(again.already, true);
+assert.equal(first.registration.checkedInAt, again.registration.checkedInAt);
+assert.equal(
+  (await call('/api/check-in', presenter.cookie, { code: partner.registration.code })).status,
+  403,
+);
+assert.equal((await call('/api/check-in', coordinator.cookie, { code: 'invalid' })).status, 404);
+const note = await call('/api/notes', presenter.cookie, {
+  text: 'Private requirements test note',
+  day: 1,
+  sessionId: 'opening',
+}).then((r) => r.json());
+assert(note.note?.id, JSON.stringify(note));
+const edit = await call('/api/notes', presenter.cookie, {
+  id: note.note.id,
+  text: 'Edited private requirements note',
+  day: 1,
+  sessionId: 'opening',
+}).then((r) => r.json());
+assert.equal(edit.note.text, 'Edited private requirements note');
+assert.equal(
+  (
+    await call('/api/notes', coordinator.cookie, {
+      id: note.note.id,
+      text: 'Cross-user edit blocked',
+      day: 1,
+      sessionId: 'opening',
+    })
+  ).status,
+  400,
+);
+const other = await call('/programme?tab=docs', users[4].cookie).then((r) => r.text());
+assert(!other.includes('Edited private requirements note'));
+console.log(
+  'PASS: all five role journeys, 25 page access checks, API access, Partner-only QR, duplicate check-in, note editing and privacy',
+);
+</file>
+
+<file path="src/app/api/attendance/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { allRegistrations } from '@/lib/repository';
+import { guard, fail, requireStaff } from '@/lib/api';
+export async function GET(request: NextRequest) {
+  try {
+    guard(request);
+    await requireStaff();
+    const registrations = await allRegistrations();
+    return NextResponse.json(
+      {
+        registrations: registrations.map(
+          ({ id, firstName, lastName, organisation, role, createdAt, checkedInAt }) => ({
+            id,
+            firstName,
+            lastName,
+            organisation,
+            role,
+            createdAt,
+            checkedInAt,
+          }),
+        ),
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  } catch (e) {
+    return fail(e, 403);
+  }
+}
+</file>
+
+<file path="src/app/api/auth/sign-out/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { guard, fail } from '@/lib/api';
+export async function POST(request: NextRequest) {
+  try {
+    guard(request);
+    const client = await createClient();
+    await client.auth.signOut();
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
+</file>
+
+<file path="src/app/api/check-in/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { codeSchema } from '@/lib/validation';
+import { checkIn } from '@/lib/repository';
+import { guard, fail, requireStaff } from '@/lib/api';
+export async function POST(request: NextRequest) {
+  try {
+    guard(request);
+    await requireStaff();
+    const { code } = await request.json();
+    const parsed = codeSchema.safeParse(code);
+    if (!parsed.success) return NextResponse.json({ unrecognised: true }, { status: 404 });
+    const result = await checkIn(parsed.data);
+    if (!result) return NextResponse.json({ unrecognised: true }, { status: 404 });
+    return NextResponse.json({
+      ...result,
+      registration: { ...result.registration, sessionToken: undefined },
+    });
+  } catch (e) {
+    return fail(e, 403);
+  }
+}
+</file>
+
+<file path="src/app/api/demo-check-in/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { isConfigured } from '@/lib/supabase/config';
+import { allRegistrations, register, checkIn } from '@/lib/repository';
+import { guard, fail, requireStaff } from '@/lib/api';
+export async function POST(request: NextRequest) {
+  try {
+    guard(request);
+    await requireStaff();
+    if (isConfigured()) return fail(new Error('Demo is disabled.'), 404);
+    const { id } = await request.json();
+    const samples: Record<string, [string, string, string]> = {
+      collin: ['Collin', 'Manyande', 'Partner'],
+      james: ['James', 'Odhiambo', 'OAK Staff'],
+      awa: ['Awa', 'Diallo', 'Coordination Team'],
+      kayden: ['Kayden', 'Mamu', 'Partner'],
+    };
+    const sample = samples[id];
+    if (!sample) return fail(new Error('Unknown sample.'), 404);
+    const email = `${id}@example.test`;
+    let entry = (await allRegistrations()).find((r) => r.email === email);
+    if (!entry)
+      entry = await register({
+        firstName: sample[0],
+        lastName: sample[1],
+        role: sample[2],
+        email,
+        organisation: sample[2] === 'OAK Staff' ? 'OAK Foundation' : 'Open Society Foundations',
+        programmeArea: '',
+        phone: '',
+        dietary: '',
+        accessibility: '',
+        travel: '',
+        consent: true,
+      });
+    const result = await checkIn(entry.code);
+    if (!result) return NextResponse.json({ unrecognised: true }, { status: 404 });
+    return NextResponse.json({
+      ...result,
+      registration: { ...result.registration, sessionToken: undefined },
+    });
+  } catch (e) {
+    return fail(e);
+  }
+}
+</file>
+
+<file path="src/app/api/notes/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { addNote, updateNote, myRegistration, staffUser, content } from '@/lib/repository';
+import { currentRole, programmeRoles } from '@/lib/access';
+import { noteSchema } from '@/lib/validation';
+import { guard, fail } from '@/lib/api';
+export async function POST(request: NextRequest) {
+  try {
+    guard(request);
+    if (!programmeRoles.includes((await currentRole()) ?? ''))
+      return fail(new Error('Register with an eligible role to use personal notes.'), 403);
+    const attendee = await myRegistration();
+    const staff = await staffUser();
+    const ownerId = attendee?.id ?? staff!.id;
+    const body = await request.json();
+    body.name = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'Coordination Team';
+    body.organisation = attendee?.organisation ?? 'OAK Foundation';
+    const parsed = noteSchema.safeParse(body);
+    if (!parsed.success) return fail(new Error(parsed.error.issues[0].message));
+    const session = (await content()).sessions.find((s) => s.id === parsed.data.sessionId);
+    if (!session) return fail(new Error('Select a valid session.'));
+    const input = { ...parsed.data, day: session.day, ownerId };
+    const note = body.id ? await updateNote(String(body.id), ownerId, input) : await addNote(input);
+    return NextResponse.json({ note });
+  } catch (e) {
+    return fail(e);
+  }
+}
+</file>
+
+<file path="src/app/api/register/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { registrationSchema } from '@/lib/validation';
+import { register, recordEmailStatus } from '@/lib/repository';
+import { guard, fail } from '@/lib/api';
+import { sendConfirmation } from '@/lib/confirmation-email';
+export async function POST(request: NextRequest) {
+  try {
+    guard(request);
+    if (Number(request.headers.get('content-length') ?? 0) > 16000)
+      return fail(new Error('Form is too large.'), 413);
+    const body = await request.json();
+    if (body.website) return fail(new Error('Unable to submit form.'));
+    const parsed = registrationSchema.safeParse(body);
+    if (!parsed.success) return fail(new Error(parsed.error.issues[0].message));
+    const registration = await register(parsed.data);
+    const emailStatus = await sendConfirmation(registration);
+    await recordEmailStatus(registration, emailStatus);
+    const response = NextResponse.json(
+      { registration: { ...registration, sessionToken: undefined } },
+      { status: 201 },
+    );
+    response.cookies.set('oak-session', registration.sessionToken!, {
+      httpOnly: true,
+      secure: request.nextUrl.protocol === 'https:',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    return response;
+  } catch (e) {
+    return fail(e);
+  }
+}
+</file>
+
+<file path="src/app/api/resources/[id]/route.ts">
+import { currentRole, programmeRoles } from '@/lib/access';
+import { NextRequest, NextResponse } from 'next/server';
+import { adminClient } from '@/lib/supabase/admin';
+import { isConfigured } from '@/lib/supabase/config';
+import { myRegistration, staffUser } from '@/lib/repository';
+import { guard, fail } from '@/lib/api';
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    guard(request);
+    if (!programmeRoles.includes((await currentRole()) ?? ''))
+      return fail(new Error('Programme access is required.'), 403);
+    if (!isConfigured())
+      return fail(
+        new Error(
+          'The original resource file was not included with the reference images. Event staff can add it after connecting Supabase.',
+        ),
+        404,
+      );
+    if (!(await myRegistration()) && !(await staffUser()))
+      return fail(new Error('Register or sign in to download event resources.'), 401);
+    const { id } = await params;
+    const client = adminClient();
+    const { data, error } = await client
+      .from('resources')
+      .select('storage_path')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error('Unable to load this resource.');
+    if (!data?.storage_path)
+      return fail(new Error('This resource has not been uploaded by event staff yet.'), 404);
+    const { data: link, error: downloadError } = await client.storage
+      .from('event-resources')
+      .createSignedUrl(data.storage_path, 60, { download: true });
+    if (downloadError) throw new Error('This resource is temporarily unavailable.');
+    return NextResponse.json({ url: link.signedUrl });
+  } catch (e) {
+    return fail(e);
+  }
+}
+</file>
+
+<file path="src/app/attendance/page.tsx">
+import { requirePage } from '@/lib/access';
+import { redirect } from 'next/navigation';
+import { Attendance } from '@/components/attendance';
+import { allRegistrations, staffUser } from '@/lib/repository';
+import { isConfigured } from '@/lib/supabase/config';
+export const metadata = { title: 'Attendance' };
+export default async function Page() {
+  await requirePage(['Coordination Team']);
+  const people = await allRegistrations();
+  return (
+    <Attendance
+      initial={people.map(
+        ({ id, firstName, lastName, organisation, role, createdAt, checkedInAt }) => ({
+          id,
+          firstName,
+          lastName,
+          organisation,
+          role,
+          createdAt,
+          checkedInAt,
+        }),
+      )}
+    />
+  );
+}
+</file>
+
+<file path="src/app/check-in/page.tsx">
+import { requirePage } from '@/lib/access';
+import { redirect } from 'next/navigation';
+import { CheckIn } from '@/components/check-in';
+import { staffUser } from '@/lib/repository';
+import { isConfigured } from '@/lib/supabase/config';
+export const metadata = { title: 'Event Check-In' };
+export default async function Page() {
+  await requirePage(['Coordination Team']);
+  return <CheckIn demo={!isConfigured()} />;
+}
+</file>
+
+<file path="src/app/partners/[id]/page.tsx">
+import { requirePage, programmeRoles } from '@/lib/access';
+import { notFound } from 'next/navigation';
+import { PartnerDetail } from '@/components/partners';
+import { content } from '@/lib/repository';
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage(programmeRoles);
+  const { id } = await params;
+  const partner = (await content()).partners.find((p) => p.id === id);
+  return { title: partner?.name ?? 'Partner not found' };
+}
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage(programmeRoles);
+  const { id } = await params;
+  const partner = (await content()).partners.find((p) => p.id === id);
+  if (!partner) notFound();
+  return <PartnerDetail partner={partner} />;
+}
+</file>
+
+<file path="src/app/partners/page.tsx">
+import { requirePage, programmeRoles } from '@/lib/access';
+import { PartnerDirectory } from '@/components/partners';
+import { content } from '@/lib/repository';
+export const metadata = { title: 'Partner Directory' };
+export default async function Page() {
+  await requirePage(programmeRoles);
+  return <PartnerDirectory partners={(await content()).partners} />;
+}
+</file>
+
+<file path="src/app/privacy/page.tsx">
+import Link from 'next/link';
+export const metadata = { title: 'Event registration privacy' };
+export default function Page() {
+  return (
+    <article className="card prose">
+      <Link className="back-link" href="/">
+        ‹ Back to registration
+      </Link>
+      <h1>Event registration privacy</h1>
+      <p>
+        This event portal collects the details you provide to coordinate your attendance at the OAK
+        Foundation Partner Convening.
+      </p>
+      <h2>Information collected</h2>
+      <p>
+        Your name, organisation, role, email and phone number are required. Programme area, dietary,
+        accessibility, travel and accommodation requirements are optional. Only provide requirements
+        you want the event team to use.
+      </p>
+      <h2>How information is used</h2>
+      <p>
+        Registration details support event planning and your entry pass. Authorised event staff can
+        check you in and monitor attendance. Requirements are used to help arrange your
+        participation.
+      </p>
+      <h2>Your entry pass and notes</h2>
+      <p>
+        A separate registration session is stored in an essential HttpOnly browser cookie for 30
+        days. Partners receive an entry QR code; keep it private. Personal session notes are
+        available only to their owner through the programme page. When email delivery is configured,
+        Partners receive registration details and an attached QR code through the event's email
+        provider.
+      </p>
+      <h2>Questions and requests</h2>
+      <p>
+        Contact the event coordination team at the registration desk for questions, corrections,
+        withdrawal of consent or deletion requests.
+      </p>
+      <p className="status">
+        This notice is a draft for the project owner to review before collecting real registrations.
+        The source ZIP did not include an approved privacy notice, retention period or privacy
+        contact.
+      </p>
+    </article>
+  );
+}
+</file>
+
+<file path="src/app/programme/page.tsx">
+import { requirePage, programmeRoles } from '@/lib/access';
+import { Programme } from '@/components/programme';
+import { content, myRegistration, staffUser } from '@/lib/repository';
+export const metadata = { title: 'Programme' };
+export default async function Page() {
+  await requirePage(programmeRoles);
+  const data = await content();
+  const ownerId = (await myRegistration())?.id ?? (await staffUser())?.id;
+  data.notes = data.notes.filter((n) => n.ownerId === ownerId);
+  return <Programme sessions={data.sessions} initialNotes={data.notes} />;
+}
+</file>
+
+<file path="src/app/qr-code/page.tsx">
+import { requirePage } from '@/lib/access';
+import { myRegistration } from '@/lib/repository';
+import { RegistrationPage } from '@/components/registration';
+export const metadata = { title: 'Your QR Code' };
+export default async function Page() {
+  await requirePage(['Partner']);
+  const entry = await myRegistration();
+  return <RegistrationPage initial={entry ? { ...entry, sessionToken: undefined } : null} />;
+}
+</file>
+
+<file path="src/app/staff/page.tsx">
+import { redirect } from 'next/navigation';
+import { StaffLogin } from '@/components/staff-login';
+import { staffUser } from '@/lib/repository';
+import { isConfigured } from '@/lib/supabase/config';
+export const metadata = { title: 'Staff sign-in' };
+export default async function Page() {
+  if (isConfigured() && (await staffUser())) redirect('/attendance');
+  return <StaffLogin demo={!isConfigured()} />;
+}
+</file>
+
+<file path="src/app/error.tsx">
+'use client';
+export default function ErrorPage({ reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="card empty-state">
+      <h1>Unable to load this page</h1>
+      <p>
+        Please try again. If the problem continues, ask the event administrator to check the app’s
+        data connection.
+      </p>
+      <button className="button" onClick={reset}>
+        Try again
+      </button>
+    </div>
+  );
+}
+</file>
+
+<file path="src/app/globals.css">
+@import 'tailwindcss';
+@theme {
+  --color-navy: #182f55;
+  --color-ink: #111a2b;
+  --color-muted: #73809f;
+  --font-sans: 'Quicksand', sans-serif;
+}
+:root {
+  --navy: #182f55;
+  --ink: #111a2b;
+  --muted: #7180a0;
+  --canvas: #f4f5f7;
+  --field: #edf0f5;
+  --line: #dfe4ed;
+  --shadow: 0 5px 13px #142c5210, 0 1px 3px #142c5205;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Quicksand', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.65;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a {
+  touch-action: manipulation;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #7995c7;
+  outline-offset: 3px;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1,
+h2 {
+  font-family: 'Baloo 2', 'Quicksand', sans-serif;
+  font-weight: 800;
+  line-height: 1.2;
+}
+h1 {
+  font-size: 29px;
+}
+h2 {
+  font-size: 23px;
+}
+h3 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+p {
+  line-height: 1.65;
+}
+svg {
+  flex-shrink: 0;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--field);
+  padding: 13px 16px;
+  color: var(--ink);
+  min-height: 49px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+textarea {
+  resize: vertical;
+  min-height: 130px;
+}
+input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  accent-color: var(--navy);
+  margin: 2px 0 0;
+  flex-shrink: 0;
+}
+select {
+  appearance: auto;
+}
+button {
+  border: 0;
+}
+strong {
+  font-weight: 700;
+}
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 232px;
+  background: white;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+.desktop-brand {
+  padding: 28px 26px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.logo {
+  font-family: Georgia, serif;
+  font-size: 38px;
+  line-height: 0.85;
+  color: var(--navy);
+  display: inline-block;
+  letter-spacing: -3px;
+  font-weight: 400;
+}
+.logo small {
+  font-size: 9px;
+  letter-spacing: 0;
+  display: block;
+  margin-top: 6px;
+}
+.eyebrow {
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+}
+.desktop-brand > .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+}
+.sidebar nav {
+  padding: 16px;
+}
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sidebar nav a:hover {
+  background: var(--field);
+}
+.sidebar nav a.active {
+  background: var(--navy);
+  color: white;
+  box-shadow: 0 5px 12px #162d5530;
+}
+.sidebar-footer {
+  margin-top: auto;
+  padding: 21px 22px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.sidebar-footer svg {
+  color: #9bb1c8;
+}
+.sidebar-footer small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.main-shell {
+  margin-left: 232px;
+  min-height: 100dvh;
+}
+main {
+  max-width: 560px;
+  margin: auto;
+  padding: 36px 0 50px;
+}
+.mobile-header,
+.bottom-nav {
+  display: none;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e4e8ef;
+  border-radius: 23px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 23px;
+  background: radial-gradient(ellipse at 87% 23%, #3d5477 0, transparent 27%), var(--navy);
+  color: white;
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+}
+.hero p {
+  color: #a7b5cd;
+  margin-top: 7px;
+}
+.hero .eyebrow {
+  margin-top: 0;
+  font-size: 11px;
+}
+.hero h1 {
+  font-size: 30px;
+  line-height: 1.16;
+}
+.registration-hero {
+  min-height: 152px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.stat {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+  gap: 3px;
+}
+.stat svg {
+  color: #9db7d0;
+  width: 16px;
+  height: 16px;
+}
+.stat strong {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 26px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+.stat span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.registration-card h2 {
+  margin-bottom: 24px;
+  font-size: 22px;
+}
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.field > span {
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #6b7899;
+  line-height: 1.4;
+}
+.field em {
+  font-style: normal;
+  color: #f53746;
+}
+.requirements {
+  border: 1px solid #d3dbe8;
+  background: var(--field);
+  border-radius: 17px;
+  padding: 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.requirements input {
+  background: white;
+}
+.requirements .eyebrow {
+  font-size: 10px;
+}
+.consent {
+  border: 1px solid #ccd5e5;
+  border-radius: 17px;
+  padding: 17px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.consent a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: #203961;
+}
+.button {
+  border: 0;
+  border-radius: 15px;
+  background: linear-gradient(125deg, #1e315b, #2c487d);
+  color: white;
+  min-height: 50px;
+  padding: 13px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 700;
+  box-shadow: 0 6px 14px #182f5530;
+  line-height: 1.4;
+}
+.button:hover {
+  filter: brightness(1.09);
+}
+.button.secondary {
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.button.small {
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+.full {
+  width: 100%;
+}
+.text-button {
+  background: none;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px;
+  font-size: 13px;
+}
+.privacy-footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 16px;
+}
+.utility-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 26px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.utility-footer a,
+.utility-footer button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  color: inherit;
+}
+.demo-label {
+  width: 100%;
+  text-align: center;
+}
+.status {
+  padding: 12px 14px;
+  background: #eef3fa;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--navy);
+}
+.status.error {
+  background: #fff0f0;
+  color: #a51e2d;
+}
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.pass-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.hero-icon {
+  padding: 12px;
+  background: #ffffff28;
+  border-radius: 16px;
+  min-width: 56px;
+  width: 56px;
+  height: 56px;
+}
+.entry-pass {
+  text-align: center;
+  padding: 30px 22px;
+}
+.qr-frame {
+  background: var(--field);
+  padding: 16px;
+  display: table;
+  border-radius: 28px;
+  margin: 28px auto 12px;
+}
+.qr-frame img {
+  border-radius: 7px;
+  max-width: 100%;
+  height: auto;
+}
+.entry-pass p:not(.eyebrow) {
+  font-size: 12px;
+  color: var(--muted);
+}
+.entry-code {
+  overflow-wrap: anywhere;
+  letter-spacing: 1.2px;
+  margin: 12px 0 3px;
+  font-size: 11px !important;
+}
+.details {
+  margin: 14px 0 0;
+}
+.details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.details > div:last-child {
+  border: 0;
+}
+.details dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.details dd {
+  text-align: right;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.between {
+  justify-content: space-between;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(520px, calc(100% - 32px));
+  max-height: 90dvh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 23px;
+  padding: 24px;
+  background: white;
+  color: var(--ink);
+  box-shadow: 0 20px 90px #0003;
+}
+.modal::backdrop {
+  background: #10213ab0;
+  backdrop-filter: blur(4px);
+}
+.modal > .row {
+  margin-bottom: 22px;
+}
+.icon-button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--field);
+  color: var(--muted);
+  border-radius: 50%;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 100;
+  background: var(--navy);
+  color: white;
+  padding: 10px;
+}
+.skip-link:focus {
+  top: 10px;
+}
+.page-heading {
+  margin-bottom: 20px;
+}
+.page-heading p {
+  color: var(--muted);
+  margin-top: 3px;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 20px;
+}
+.muted {
+  color: var(--muted);
+}
+.empty-state {
+  text-align: center;
+  padding: 40px 22px;
+}
+.empty-state > svg {
+  color: #9ab5cd;
+  background: var(--field);
+  padding: 20px;
+  box-sizing: content-box;
+  border-radius: 24px;
+  margin: 0 auto 17px;
+}
+.empty-state h2 {
+  margin-bottom: 7px;
+}
+.empty-state p {
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+.empty-state .button {
+  margin-top: 0;
+}
+.prose p {
+  margin: 14px 0;
+}
+.prose h2 {
+  margin-top: 24px;
+}
+@media (min-width: 768px) and (max-width: 1000px) {
+  .sidebar {
+    width: 190px;
+  }
+  .main-shell {
+    margin-left: 190px;
+  }
+  main {
+    padding-left: 24px;
+    padding-right: 24px;
+    max-width: 608px;
+  }
+}
+@media (max-width: 767px) {
+  body {
+    font-size: 14px;
+  }
+  .sidebar {
+    display: none;
+  }
+  .mobile-header {
+    height: 80px;
+    background: var(--navy);
+    color: #bbc8de;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 13px;
+    font-size: 11px;
+    letter-spacing: 1.1px;
+    font-weight: 700;
+  }
+  .mobile-header .logo {
+    font-size: 22px;
+    color: white;
+    letter-spacing: -1.5px;
+  }
+  .mobile-header .logo small {
+    font-size: 5px;
+    margin-top: 5px;
+  }
+  .brand-divider {
+    height: 23px;
+    width: 1px;
+    background: #ffffff33;
+  }
+  .main-shell {
+    margin-left: 0;
+  }
+  main {
+    padding: 24px 16px 120px;
+    max-width: 560px;
+  }
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffffef;
+    backdrop-filter: blur(10px);
+    z-index: 25;
+    padding: 9px 8px max(9px, env(safe-area-inset-bottom));
+    border-top: 1px solid #f0f2f6;
+    min-height: 67px;
+  }
+  .bottom-nav a {
+    color: #7783a2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 56px;
+    padding: 5px 9px;
+    border-radius: 20px;
+  }
+  .bottom-nav a.active {
+    background: #ebedf1;
+    color: #1c345e;
+  }
+  .hero {
+    padding: 26px 23px;
+  }
+  .registration-hero {
+    min-height: 166px;
+  }
+  .hero h1 {
+    font-size: 31px;
+  }
+  .stats-grid {
+    gap: 12px;
+  }
+  .stat {
+    padding: 16px 15px;
+    min-height: 96px;
+  }
+  .stat strong {
+    font-size: 26px;
+  }
+  .card {
+    border-radius: 24px;
+    padding: 20px;
+  }
+  .registration-card {
+    padding: 23px 20px 20px;
+  }
+  .registration-card h2 {
+    margin-bottom: 24px;
+  }
+  .field > span {
+    font-size: 11px;
+  }
+  .form-stack {
+    gap: 16px;
+  }
+  input,
+  select {
+    min-height: 52px;
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+  .requirements {
+    padding: 16px;
+  }
+  .requirements input {
+    padding-left: 15px;
+    padding-right: 8px;
+  }
+  .consent {
+    font-size: 13px;
+    padding: 16px;
+    gap: 12px;
+  }
+  .button {
+    min-height: 53px;
+    font-size: 15px;
+  }
+  .registration-page .privacy-footer {
+    font-size: 12px;
+  }
+  .page-heading h1 {
+    font-size: 28px;
+  }
+  .pass-hero {
+    padding: 24px;
+  }
+  .pass-hero h1 {
+    font-size: 26px;
+  }
+  .entry-pass {
+    padding: 25px 20px;
+  }
+  .details {
+    font-size: 13px;
+  }
+  .utility-footer {
+    margin-top: 32px;
+  }
+}
+.segmented {
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  background: #e5e8ef;
+  border-radius: 10px;
+  margin-bottom: 22px;
+}
+.segmented button {
+  flex: 1;
+  background: none;
+  color: var(--muted);
+  padding: 9px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.segmented button.selected {
+  background: white;
+  color: var(--ink);
+  box-shadow: 0 2px 3px #142c5208;
+}
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 34px;
+}
+.day-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 18px;
+  text-align: left;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.day-card strong {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 800;
+  font-size: 25px;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.day-card > span:last-child {
+  font-size: 13px;
+}
+.day-card.selected {
+  background: var(--navy);
+  color: #aab8cc;
+  box-shadow: 0 6px 16px #172f5530;
+}
+.day-card.selected strong {
+  color: white;
+}
+.day-card.selected .eyebrow {
+  color: #b4c4dc;
+}
+.featured {
+  padding: 24px;
+  border-radius: 25px;
+  background:
+    radial-gradient(ellipse at 90% 15%, #2f3d56, transparent 42%),
+    linear-gradient(120deg, #0e1827, #1a2945);
+  color: white;
+  box-shadow: var(--shadow);
+}
+.featured .eyebrow {
+  color: #a8bbca;
+  gap: 10px;
+  font-size: 10px;
+}
+.featured h2 {
+  font-size: 26px;
+  margin: 22px 0 17px;
+}
+.featured p {
+  font-size: 13px;
+  color: #8a9bb0;
+  margin-top: 8px;
+}
+.mini-avatar {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #ffffff1a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 11px;
+}
+.legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  margin: 14px 0 25px;
+}
+.legend > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #20365e;
+}
+.dot.breakout {
+  background: #f4a000;
+}
+.dot.workshop {
+  background: #9861ff;
+}
+.dot.social {
+  background: #ff7a10;
+}
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.break-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 34px;
+  padding: 0 4px;
+}
+.break-row time {
+  min-width: 42px;
+}
+.break-row > span {
+  height: 1px;
+  background: #dce1eb;
+  flex: 1;
+}
+.break-row p {
+  text-align: center;
+}
+.session {
+  padding: 19px 22px;
+}
+.session summary {
+  list-style: none;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.session summary::-webkit-details-marker {
+  display: none;
+}
+.session-time {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 1.5;
+  min-width: 40px;
+}
+.session-time span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.session-body {
+  flex: 1;
+  min-width: 0;
+}
+.session-title {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.session h3 {
+  font-size: 15px;
+}
+.session-body p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 7px;
+}
+.session-body p.row {
+  gap: 4px;
+  margin-top: 3px;
+}
+.badge {
+  display: inline-block;
+  white-space: nowrap;
+  border-radius: 20px;
+  border: 1px solid #bccae3;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 9px;
+  line-height: 1.4;
+  background: #eef2fa;
+  color: #203a66;
+}
+.badge.breakout {
+  background: #fff5cb;
+  border-color: #ffda62;
+  color: #ad5704;
+}
+.badge.workshop {
+  background: #f5ecff;
+  border-color: #dcc2ff;
+  color: #7c42c9;
+}
+.badge.social {
+  background: #fff7ed;
+  border-color: #ffca9f;
+  color: #e97510;
+}
+.badge.staff {
+  background: #ecfdf6;
+  border-color: #89e8c1;
+  color: #039471;
+}
+.disclosure {
+  color: var(--muted);
+  margin-top: 5px;
+  transition: transform 0.2s;
+}
+.session[open] .disclosure {
+  transform: rotate(180deg);
+}
+.session-description {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.docs {
+  gap: 28px;
+  margin-top: 30px;
+}
+.section-title {
+  margin-bottom: 16px;
+}
+.section-title h2,
+h2.section-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+}
+.section-title svg {
+  color: #475e80;
+}
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+.note-header strong {
+  display: block;
+  font-size: 12px;
+}
+.note-header small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+}
+.note-header .time-label {
+  margin-left: auto;
+  align-self: flex-start;
+}
+.time-label {
+  padding: 3px 7px;
+  background: var(--field);
+  color: var(--muted);
+  font-size: 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.note p {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.avatar {
+  width: 49px;
+  height: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--navy);
+  color: white;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.avatar.small {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: linear-gradient(120deg, #20335c, #324d80);
+}
+.avatar.large {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  font-size: 18px;
+}
+.note-header .avatar {
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  font-size: 10px;
+}
+.gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.gallery button {
+  padding: 0;
+  border-radius: 17px;
+  overflow: hidden;
+  background: #e9edf4;
+  aspect-ratio: 1.35;
+}
+.gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+.gallery button:hover img {
+  transform: scale(1.04);
+}
+.takeaways {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.takeaways li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+}
+.takeaways li > span {
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  background: #2b487b;
+  border-radius: 50%;
+  color: white;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.resource {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  color: var(--ink);
+  padding: 18px 20px;
+  width: 100%;
+}
+.resource > span:nth-child(2) {
+  flex: 1;
+}
+.resource strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.resource small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.resource > svg {
+  color: var(--muted);
+}
+.file-icon {
+  background: var(--field);
+  border-radius: 14px;
+  padding: 12px;
+  color: #435d83;
+}
+.lightbox-image {
+  width: 100%;
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+.photo-controls {
+  margin-top: 20px;
+}
+.directory-search {
+  padding: 16px;
+}
+.region-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-top: 12px;
+  scrollbar-width: thin;
+}
+.region-filters button {
+  white-space: nowrap;
+  color: var(--muted);
+  background: var(--field);
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 7px 12px;
+}
+.region-filters button.selected {
+  background: #203560;
+  color: white;
+}
+.directory-label {
+  margin: 23px 0 16px;
+}
+.subpartners {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+}
+.subpartners > a {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  padding: 17px 6px 23px;
+  gap: 8px;
+  min-width: 0;
+}
+.subpartners strong {
+  font-size: 12px;
+}
+.subpartners small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.subpartners .avatar {
+  font-size: 12px;
+}
+.partner-list {
+  gap: 16px;
+}
+.partner-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.partner-main > div {
+  flex: 1;
+  min-width: 0;
+}
+.partner-main > svg {
+  color: var(--muted);
+  margin-top: 4px;
+}
+.partner-main h3 {
+  font-size: 15px;
+}
+.partner-main p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 5px;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tag {
+  color: var(--muted);
+  background: var(--field);
+  border-radius: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  line-height: 1.5;
+}
+.tag.category {
+  color: var(--navy);
+  background: #eff1fa;
+}
+.tag.ngo {
+  background: #eafbf4;
+}
+.tag.research {
+  background: #f9f3ff;
+}
+.tag.network {
+  background: #fff6ee;
+}
+.partner-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 19px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+.partner-footer a {
+  color: #19345e;
+  font-weight: 700;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  overflow-wrap: anywhere;
+  text-align: right;
+  min-width: 0;
+}
+.partner-detail {
+  gap: 17px;
+}
+.partner-detail .hero {
+  padding: 25px;
+}
+.partner-detail .hero h1 {
+  font-size: 28px;
+  margin-top: 5px;
+}
+.partner-detail .hero .avatar {
+  background: #ffffff30;
+}
+.partner-detail .hero .tags {
+  margin-top: 20px;
+}
+.partner-detail .hero .tag {
+  background: #ffffff30;
+  color: white;
+  font-size: 11px;
+}
+.partner-detail .about-copy {
+  margin-top: 14px;
+  line-height: 1.8;
+  font-size: 15px;
+}
+.partner-detail .contact {
+  margin-top: 17px;
+}
+.partner-detail .contact p {
+  font-size: 12px;
+}
+.partner-action {
+  justify-content: flex-start;
+}
+.partner-action > svg:last-child {
+  margin-left: auto;
+}
+.scanner {
+  background: #0e1826;
+  border-radius: 25px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  color: #5e7184;
+}
+.camera-view {
+  position: relative;
+  height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.camera-view video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-view > p {
+  position: absolute;
+  bottom: 25px;
+  font-size: 12px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  background: #0e182655;
+}
+.scan-frame {
+  position: relative;
+  width: 58%;
+  aspect-ratio: 1;
+  max-width: 245px;
+}
+.scan-frame i {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #a5bbc9;
+}
+.scan-frame i:nth-child(1) {
+  left: 0;
+  top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 12px;
+}
+.scan-frame i:nth-child(2) {
+  right: 0;
+  top: 0;
+  border-left: 0;
+  border-bottom: 0;
+  border-top-right-radius: 12px;
+}
+.scan-frame i:nth-child(3) {
+  left: 0;
+  bottom: 0;
+  border-right: 0;
+  border-top: 0;
+  border-bottom-left-radius: 12px;
+}
+.scan-frame i:nth-child(4) {
+  right: 0;
+  bottom: 0;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 12px;
+}
+.scanner-footer {
+  border-top: 1px solid #ffffff15;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.scanner-footer svg {
+  padding: 7px;
+  box-sizing: content-box;
+  background: #ffffff10;
+  border-radius: 50%;
+}
+.manual-entry {
+  margin-top: 17px;
+  gap: 9px;
+}
+.manual-entry input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+.manual-entry .button {
+  padding-left: 19px;
+  padding-right: 19px;
+  font-size: 14px;
+}
+.simulation-hint {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 6px;
+  margin-bottom: 15px;
+}
+.sample-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: white;
+  border: 2px solid #e4e8f0;
+  border-radius: 17px;
+  padding: 12px;
+  margin-top: 9px;
+  text-align: left;
+}
+.sample-person > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.sample-person strong {
+  font-size: 13px;
+  display: block;
+  line-height: 1.4;
+}
+.sample-person small {
+  font-size: 10px;
+  display: block;
+  color: var(--muted);
+}
+.sample-person .badge {
+  font-size: 9px;
+  padding: 4px 7px;
+}
+.outcome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+}
+.outcome h1 {
+  font-size: 25px;
+}
+.outcome p {
+  font-size: 13px;
+}
+.outcome.failure {
+  background: linear-gradient(125deg, #e61920, #f34143);
+}
+.outcome.success {
+  background: linear-gradient(125deg, #039b7d, #08b989);
+}
+.outcome p,
+.outcome .eyebrow {
+  color: #ffffffb0;
+}
+.reasons {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.reasons li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.reasons li:before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  background: #ff5b64;
+  box-shadow: 0 0 0 5px #ffe2e4;
+  border-radius: 50%;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+.next-session {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.next-session > div {
+  background: var(--field);
+  padding: 13px;
+  border-radius: 17px;
+}
+.next-session .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+}
+.next-session strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 13px;
+}
+progress {
+  height: 7px;
+  width: 100%;
+  margin-top: 15px;
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e5e9ef;
+}
+progress::-webkit-progress-bar {
+  background: #e5e9ef;
+}
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #20325c, #304d82);
+  border-radius: 10px;
+}
+progress::-moz-progress-bar {
+  background: #20325c;
+}
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.overview-grid > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--field);
+  border-radius: 17px;
+  padding: 13px 5px;
+}
+.overview-grid strong {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 31px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.overview-grid > div:nth-child(2) {
+  color: var(--navy);
+}
+.overview-grid > div:last-child {
+  color: #74819d;
+}
+.overview-grid span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.attendance-list > .row {
+  border-bottom: 1px solid var(--line);
+  padding: 15px 0;
+}
+.attendance-list strong {
+  font-size: 13px;
+}
+.attendance-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.attendance-list time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+@media (max-width: 767px) {
+  .day-grid {
+    gap: 11px;
+    margin-bottom: 32px;
+  }
+  .day-card {
+    padding: 15px 14px;
+  }
+  .day-card strong {
+    font-size: 24px;
+  }
+  .featured {
+    padding: 24px 20px;
+  }
+  .featured h2 {
+    font-size: 25px;
+  }
+  .featured .eyebrow {
+    font-size: 9px;
+  }
+  .session {
+    padding: 18px 17px;
+  }
+  .session summary {
+    gap: 10px;
+  }
+  .session h3 {
+    font-size: 14px;
+  }
+  .session-title {
+    gap: 8px;
+  }
+  .session-body p {
+    font-size: 12px;
+  }
+  .session .badge {
+    font-size: 9px;
+    padding: 5px 7px;
+  }
+  .session .disclosure {
+    width: 12px;
+  }
+  .session-time {
+    min-width: 38px;
+    font-size: 12px;
+  }
+  .session-time span {
+    font-size: 10px;
+  }
+  .docs {
+    gap: 28px;
+  }
+  .notes-list {
+    gap: 13px;
+  }
+  .note {
+    padding: 17px;
+  }
+  .note-header {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .note-header strong {
+    font-size: 11px;
+  }
+  .note-header small {
+    font-size: 9px;
+  }
+  .note p {
+    font-size: 13px;
+    line-height: 1.85;
+  }
+  .time-label {
+    font-size: 9px;
+  }
+  .note-header .time-label {
+    padding: 3px 6px;
+  }
+  .section-title h2,
+  h2.section-title {
+    font-size: 17px;
+  }
+  .takeaways li {
+    font-size: 13px;
+  }
+  .resource {
+    padding: 15px;
+  }
+  .resource strong {
+    font-size: 12px;
+  }
+  .resource small {
+    font-size: 11px;
+  }
+  .partner-card {
+    padding: 16px;
+  }
+  .partner-main {
+    gap: 14px;
+  }
+  .partner-main h3 {
+    font-size: 14px;
+  }
+  .partner-main .avatar {
+    width: 48px;
+    height: 48px;
+  }
+  .partner-main p {
+    font-size: 12px;
+  }
+  .tags {
+    gap: 5px;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 4px 9px;
+  }
+  .partner-footer {
+    font-size: 10px;
+    gap: 8px;
+  }
+  .partner-footer a {
+    font-size: 10px;
+  }
+  .partner-list {
+    gap: 16px;
+  }
+  .partner-detail .hero h1 {
+    font-size: 25px;
+  }
+  .partner-detail .hero {
+    padding: 24px;
+  }
+  .partner-detail .hero .eyebrow {
+    font-size: 9px;
+  }
+  .partner-detail .hero .row {
+    gap: 16px;
+  }
+  .partner-detail .about-copy {
+    font-size: 14px;
+  }
+  .camera-view {
+    height: 365px;
+  }
+  .scanner-footer {
+    padding: 14px 16px;
+    font-size: 11px;
+  }
+  .simulation {
+    min-height: 335px;
+  }
+  .outcome {
+    padding: 22px 19px;
+    gap: 13px;
+  }
+  .outcome h1 {
+    font-size: 23px;
+  }
+  .outcome .hero-icon {
+    min-width: 50px;
+    width: 50px;
+    height: 50px;
+  }
+  .outcome p {
+    font-size: 12px;
+  }
+  .outcome .eyebrow {
+    font-size: 9px;
+  }
+  .empty-state {
+    padding: 38px 22px;
+  }
+  .empty-state .button {
+    font-size: 14px;
+  }
+  .overview-grid {
+    gap: 11px;
+  }
+  .gallery {
+    gap: 9px;
+  }
+  .gallery button {
+    border-radius: 15px;
+  }
+  .partner-detail .button {
+    font-size: 14px;
+  }
+}
+@media (max-width: 360px) {
+  .session-title {
+    flex-wrap: wrap;
+  }
+  .note-header .time-label {
+    white-space: normal;
+    max-width: 60px;
+  }
+  .partner-footer {
+    align-items: flex-start;
+  }
+  .partner-footer > span {
+    max-width: 75px;
+  }
+  .partner-footer a {
+    max-width: 170px;
+  }
+  .bottom-nav a {
+    min-width: 0;
+    font-size: 9px;
+    padding: 5px 7px;
+  }
+  .mobile-header {
+    font-size: 9px;
+    gap: 10px;
+  }
+  .sample-person {
+    gap: 7px;
+    padding: 10px;
+  }
+  .sample-person .badge {
+    font-size: 8px;
+  }
+  .sample-person strong {
+    font-size: 12px;
+  }
+}
+.eyebrow {
+  font-family: 'Quicksand', sans-serif;
+}
+.registration-card h2 {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+}
+@media (max-width: 767px) {
+  .page-heading h1 {
+    font-size: 25px;
+  }
+  .day-card {
+    padding: 14px;
+  }
+  .day-card strong {
+    font-size: 22px;
+  }
+  .featured {
+    padding: 20px;
+  }
+  .featured h2 {
+    font-size: 22px;
+    margin: 18px 0 12px;
+  }
+  .session {
+    padding-left: 30px;
+  }
+  .utility-footer {
+    margin-top: 22px;
+  }
+  main {
+    padding-bottom: 96px;
+  }
+}
+@media (max-width: 360px) {
+  .session {
+    padding-left: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.note p,
+.hero h1,
+.contact h3,
+.attendance-list strong {
+  overflow-wrap: anywhere;
+}
+
+.dropdown {
+  position: relative;
+  width: 100%;
+}
+.dropdown .dropdown-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.dropdown-trigger {
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dropdown-trigger svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.dropdown-trigger[aria-invalid='true'] {
+  border-color: #dc3545;
+}
+.dropdown-menu {
+  position: absolute;
+  z-index: 50;
+  top: 100%;
+  left: -4px;
+  right: -4px;
+  padding: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 17px;
+  box-shadow: 0 3px 10px #00000040;
+}
+.dropdown-option {
+  padding: 4px 10px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  color: var(--ink);
+  line-height: 22px;
+  cursor: pointer;
+}
+.dropdown-option.highlighted {
+  background: var(--navy);
+  color: white;
+}
+.dropdown-option[aria-disabled='true'] {
+  cursor: default;
+}
+.dropdown-error {
+  color: #b42318;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+/* Supplied OAK logo includes the event title and its own spacing. */
+.desktop-brand.desktop-image-brand { padding: 0; gap: 0; }
+.oak-brand-image { display: block; width: 100%; height: auto; object-fit: contain; }
+.mobile-header.mobile-image-header { background: #fff; height: 110px; }
+.mobile-image-header > a { display: block; width: 220px; max-width: 100%; }
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from 'next';
+import '@fontsource/quicksand/400.css';
+import '@fontsource/quicksand/500.css';
+import '@fontsource/quicksand/600.css';
+import '@fontsource/quicksand/700.css';
+import '@fontsource/baloo-2/700.css';
+import '@fontsource/baloo-2/800.css';
+import './globals.css';
+import { Shell } from '@/components/shell';
+import { isConfigured } from '@/lib/supabase/config';
+import { staffUser } from '@/lib/repository';
+import { currentRole } from '@/lib/access';
+export const metadata: Metadata = {
+  title: { default: 'OAK Foundation | Partner Convening 2026', template: '%s | OAK Foundation' },
+  description:
+    'Register, explore the programme and connect with partners at the OAK Foundation Partner Convening, 9–11 November 2026.',
+  icons: { icon: '/favicon.svg' },
+};
+export const dynamic = 'force-dynamic';
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const role = await currentRole();
+  return (
+    <html lang="en">
+      <body>
+        <Shell demo={!isConfigured()} role={role}>
+          {children}
+        </Shell>
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="src/app/loading.tsx">
+export default function Loading() {
+  return (
+    <div className="card" role="status">
+      <p>Loading the event portal…</p>
+    </div>
+  );
+}
+</file>
+
+<file path="src/app/not-found.tsx">
+import Link from 'next/link';
+export default function NotFound() {
+  return (
+    <div className="card empty-state">
+      <h1>Page not found</h1>
+      <p>We couldn’t find that page in the event portal.</p>
+      <Link className="button" href="/">
+        Back to registration
+      </Link>
+    </div>
+  );
+}
+</file>
+
+<file path="src/app/page.tsx">
+import { RegistrationPage } from '@/components/registration';
+export default async function Page() {
+  return <RegistrationPage initial={null} />;
+}
+</file>
+
+<file path="src/components/attendance.tsx">
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Card, Status, requestJson } from './ui';
+import { Dropdown } from './dropdown';
+import { registrationRoles } from '@/lib/roles';
+type Person = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  organisation: string;
+  role: string;
+  createdAt: string;
+  checkedInAt: string | null;
+};
+export function Attendance({ initial }: { initial: Person[] }) {
+  const [people, setPeople] = useState(initial),
+    [query, setQuery] = useState(''),
+    [role, setRole] = useState(''),
+    [status, setStatus] = useState(''),
+    [error, setError] = useState('');
+  async function refresh() {
+    try {
+      setPeople((await requestJson('/api/attendance')).registrations);
+      setError('');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+  const checked = people.filter((p) => p.checkedInAt).length;
+  const filtered = people.filter(
+    (p) =>
+      `${p.firstName} ${p.lastName} ${p.organisation}`
+        .toLowerCase()
+        .includes(query.toLowerCase()) &&
+      (!role || p.role === role) &&
+      (!status || (status === 'attended' ? !!p.checkedInAt : !p.checkedInAt)),
+  );
+  const format = (value: string) =>
+    new Date(value).toLocaleString('en-GB', {
+      timeZone: 'Africa/Harare',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  return (
+    <>
+      <div className="page-heading">
+        <h1>Attendance</h1>
+        <p>Registration and check-in tracking · 9–11 November 2026</p>
+      </div>
+      <div className="stack">
+        <div className="stats-grid">
+          {[
+            [people.length, 'Registered'],
+            [checked, 'Attendees'],
+            [
+              `${people.length ? Math.round((checked / people.length) * 100) : 0}%`,
+              'Attendance rate',
+            ],
+          ].map(([value, label]) => (
+            <Card className="stat" key={label}>
+              <strong>{value}</strong>
+              <span>{label}</span>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <h2>Role breakdown</h2>
+          <dl className="details">
+            {registrationRoles.map((r) => (
+              <div key={r}>
+                <dt>{r}</dt>
+                <dd>{people.filter((p) => p.role === r).length}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+        <Card>
+          <div className="row between">
+            <h2>Participants</h2>
+            <button className="text-button" onClick={refresh}>
+              Refresh
+            </button>
+          </div>
+          <div className="form-stack mt-4">
+            <input
+              aria-label="Search participants"
+              placeholder="Search name or organisation…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div>
+              <div className="field">
+                <span>Role</span>
+                <Dropdown
+                  name="role"
+                  label="Filter by role"
+                  onValueChange={setRole}
+                  options={[
+                    { value: '', label: 'All roles' },
+                    ...registrationRoles.map((r) => ({ value: r, label: r })),
+                  ]}
+                />
+              </div>
+              <div className="field mt-4">
+                <span>Attendance status</span>
+                <Dropdown
+                  name="status"
+                  label="Attendance status"
+                  onValueChange={setStatus}
+                  options={[
+                    { value: '', label: 'All participants' },
+                    { value: 'attended', label: 'Attended' },
+                    { value: 'pending', label: 'Not checked in' },
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="attendance-list">
+            {filtered.map((p) => (
+              <div key={p.id} style={{ padding: '18px 0', borderBottom: '1px solid var(--line)' }}>
+                <div className="row between">
+                  <strong>
+                    {p.firstName} {p.lastName}
+                  </strong>
+                  <span className="pill">{p.checkedInAt ? 'Attended' : 'Registered'}</span>
+                </div>
+                <p>
+                  {p.organisation} · {p.role}
+                </p>
+                <small className="muted">
+                  Registered: {format(p.createdAt)}
+                  <br />
+                  Check-in: {p.checkedInAt ? format(p.checkedInAt) : 'Not checked in'}
+                </small>
+              </div>
+            ))}
+            {!filtered.length && <p className="muted py-5">No participants match these filters.</p>}
+          </div>
+          <Link className="button full mt-4" href="/check-in">
+            Open Check-in Scanner
+          </Link>
+        </Card>
+        <Status error>{error}</Status>
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/components/check-in.tsx">
+'use client';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  ScanLine,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  MapPin,
+  Users,
+  RefreshCw,
+  Phone,
+  Camera,
+  CameraOff,
+  TriangleAlert,
+} from 'lucide-react';
+import type { Registration } from '@/lib/types';
+import { initials } from '@/lib/data';
+import { Card, Status, Modal, requestJson } from './ui';
+export function CheckIn({ demo }: { demo: boolean }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState<{ registration: Registration; already: boolean } | null>(
+    null,
+  );
+  const [failed, setFailed] = useState(false);
+  const [camera, setCamera] = useState(false);
+  const [contact, setContact] = useState(false);
+  const [count, setCount] = useState(0);
+  const video = useRef<HTMLVideoElement>(null);
+  const controls = useRef<{ stop: () => void } | null>(null);
+  const scanning = useRef(false);
+  const generation = useRef(0);
+  const stop = useCallback(() => {
+    generation.current++;
+    controls.current?.stop();
+    controls.current = null;
+    const stream = video.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    if (video.current) video.current.srcObject = null;
+    setCamera(false);
+  }, []);
+  useEffect(
+    () => () => {
+      generation.current++;
+      controls.current?.stop();
+    },
+    [],
+  );
+  async function scan(value: string, sample = false) {
+    if (scanning.current) return;
+    scanning.current = true;
+    setBusy(true);
+    setError('');
+    stop();
+    try {
+      const response = await fetch(sample ? '/api/demo-check-in' : '/api/check-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sample ? { id: value } : { code: value }),
+      });
+      const data = await response.json();
+      if (data.unrecognised) {
+        setFailed(true);
+        return;
+      }
+      if (!response.ok) throw new Error(data.error || 'Unable to check in.');
+      setResult(data);
+      const attendance = await requestJson('/api/attendance');
+      setCount(attendance.registrations.filter((r: Registration) => r.checkedInAt).length);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      scanning.current = false;
+      setBusy(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+  async function startCamera() {
+    setError('');
+    setCamera(true);
+    const current = ++generation.current;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw new Error(
+          'Camera access needs HTTPS or localhost. You can use manual code entry below.',
+        );
+      const { BrowserQRCodeReader } = await import('@zxing/browser');
+      if (current !== generation.current) return;
+      const reader = new BrowserQRCodeReader();
+      const c = await reader.decodeFromVideoDevice(undefined, video.current!, (decoded) => {
+        if (decoded && !scanning.current) void scan(decoded.getText());
+      });
+      if (current !== generation.current) c.stop();
+      else controls.current = c;
+    } catch {
+      if (current === generation.current) {
+        setCamera(false);
+        setError(
+          'Camera is unavailable or permission was denied. Check camera permissions, or enter the pass code below.',
+        );
+      }
+    }
+  }
+  function reset() {
+    setResult(null);
+    setFailed(false);
+    setCode('');
+    setError('');
+  }
+  if (failed)
+    return (
+      <div className="stack">
+        <section className="hero outcome failure">
+          <XCircle className="hero-icon" />
+          <div>
+            <p className="eyebrow">CHECK-IN FAILED</p>
+            <h1>QR Code Not Recognized</h1>
+            <p>Code is invalid or unregistered</p>
+          </div>
+        </section>
+        <Card>
+          <h3 className="row">
+            <TriangleAlert size={17} color="#ff353f" />
+            Possible reasons
+          </h3>
+          <ul className="reasons">
+            {[
+              'QR code belongs to a different event',
+              'Registration was not completed',
+              'Code has been altered or corrupted',
+              'Attendee registered under a different email',
+            ].map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </Card>
+        <button className="button full" onClick={reset}>
+          <RefreshCw size={18} />
+          Retry Scan
+        </button>
+        <Link className="button secondary full" href="/attendance">
+          Manual Search
+        </Link>
+        <button className="text-button" onClick={reset}>
+          Return to Scanner
+        </button>
+        <button className="button secondary full" onClick={() => setContact(true)}>
+          <Phone size={18} />
+          Contact Coordination Team
+        </button>
+        {contact && (
+          <Modal title="Event coordination" onClose={() => setContact(false)}>
+            <p>
+              Please speak to the coordination team at the event registration desk. They can locate
+              the attendee’s registration and confirm their entry pass.
+            </p>
+          </Modal>
+        )}
+      </div>
+    );
+  if (result) {
+    const r = result.registration;
+    return (
+      <div className="stack">
+        <section className="hero outcome success">
+          <CheckCircle2 className="hero-icon" />
+          <div>
+            <h1>{result.already ? 'Already Checked In' : 'Participant Successfully Checked In'}</h1>
+            <p className="row">
+              <Clock size={13} />
+              {new Date(r.checkedInAt!).toLocaleString('en-GB', {
+                timeZone: 'Africa/Harare',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </div>
+        </section>
+        <Card>
+          <div className="row">
+            <span className="avatar large">{initials(`${r.firstName} ${r.lastName}`)}</span>
+            <div>
+              <h2>
+                {r.firstName} {r.lastName}
+              </h2>
+              <p className="muted">{r.organisation}</p>
+              <span className="badge plenary">● {r.role}</span>
+              <p>Registration status: Registered</p>
+            </div>
+          </div>
+          <div className="next-session">
+            <div>
+              <span className="eyebrow">
+                <Users size={12} />
+                FIRST SESSION
+              </span>
+              <strong>Opening Plenary</strong>
+            </div>
+            <div>
+              <span className="eyebrow">
+                <MapPin size={12} />
+                VENUE
+              </span>
+              <strong>Main Hall A</strong>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <h2 className="eyebrow">EVENT ATTENDANCE</h2>
+          <h3 className="mt-4">{count} of 110 attendees checked in</h3>
+          <p className="muted mt-2">
+            {result.already ? 'This attendee was already counted.' : 'Entry pass confirmed.'} · Main
+            Hall A
+          </p>
+          <progress value={count} max={Math.max(110, count)} aria-label="Attendees checked in" />
+        </Card>
+        <Status error>{error}</Status>
+        <button className="button full" onClick={reset}>
+          <ScanLine size={20} />
+          Scan Next Attendee
+        </button>
+        <Link className="text-button" href="/attendance">
+          View attendance
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="page-heading">
+        <h1>Event Check-In</h1>
+        <p>Scan an attendee QR code to check them in</p>
+      </div>
+      <div className="stack">
+        <section className="scanner">
+          <div className="camera-view">
+            <video
+              ref={video}
+              autoPlay
+              playsInline
+              muted
+              aria-label="QR scanner camera"
+              className={camera ? '' : 'hidden'}
+            />
+            <div className="scan-frame">
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+            <p>Position QR code within the frame</p>
+          </div>
+          <div className="scanner-footer">
+            <ScanLine size={20} />
+            <span>
+              {camera
+                ? 'Hold camera steady · Auto-scans in 1–2 seconds'
+                : 'Start the camera to scan an entry pass'}
+            </span>
+          </div>
+        </section>
+        <button
+          className="button secondary full"
+          disabled={busy}
+          onClick={camera ? stop : startCamera}
+        >
+          {camera ? <CameraOff size={18} /> : <Camera size={18} />}{' '}
+          {camera ? 'Stop Camera' : 'Start Camera'}
+        </button>
+        <Status error>{error}</Status>
+        {demo && (
+          <Card className="simulation">
+            <h2 className="eyebrow">SIMULATE QR SCAN</h2>
+            <p className="simulation-hint">Local demo attendees</p>
+            {[
+              {
+                id: 'collin',
+                name: 'Collin Manyande',
+                role: 'Partner',
+                code: 'OAK-2026-7842-XKPH',
+              },
+              { id: 'kayden', name: 'Kayden Mamu', role: 'Partner', code: 'OAK-2026-5592-FWBN' },
+            ].map((p) => (
+              <button
+                disabled={busy}
+                className="sample-person"
+                key={p.id}
+                onClick={() => scan(p.id, true)}
+              >
+                <span className="avatar small">{initials(p.name)}</span>
+                <span>
+                  <strong>{p.name}</strong>
+                  <small>{p.code}</small>
+                </span>
+                <span className={`badge ${p.role === 'OAK Staff' ? 'staff' : 'plenary'}`}>
+                  ● {p.role}
+                </span>
+              </button>
+            ))}
+          </Card>
+        )}
+        <Card>
+          <h2 className="eyebrow">MANUAL CODE ENTRY</h2>
+          <form
+            className="row manual-entry"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void scan(code);
+            }}
+          >
+            <label className="sr-only" htmlFor="entry-code">
+              Entry pass code
+            </label>
+            <input
+              id="entry-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="OAK-2026-XXXX-XXXX"
+              required
+              maxLength={90}
+              autoComplete="off"
+            />
+            <button className="button" disabled={busy}>
+              {busy ? 'Checking…' : 'Check'}
+            </button>
+          </form>
+        </Card>
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/components/dropdown.tsx">
+'use client';
+
+import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+
+type Option = { value: string; label: string; disabled?: boolean };
+
+/** Shared styled select; the native control retains FormData and required validation. */
+export function Dropdown({
+  onValueChange,
+  name,
+  label,
+  options,
+  defaultValue = '',
+  required = false,
+}: {
+  onValueChange?: (value: string) => void;
+  name: string;
+  label: string;
+  options: Option[];
+  defaultValue?: string;
+  required?: boolean;
+}) {
+  const id = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [value, setValue] = useState(defaultValue);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(
+    Math.max(
+      0,
+      options.findIndex((o) => o.value === defaultValue),
+    ),
+  );
+  const [invalid, setInvalid] = useState(false);
+  const search = useRef({ text: '', time: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  useEffect(() => {
+    if (open)
+      document.getElementById(`${id}-option-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, open, id]);
+
+  function choose(index: number) {
+    if (options[index]?.disabled) return;
+    setValue(options[index].value);
+    onValueChange?.(options[index].value);
+    setInvalid(false);
+    setOpen(false);
+    trigger.current?.focus();
+  }
+
+  function move(direction: number) {
+    let next = active;
+    for (let i = 0; i < options.length; i++) {
+      next = (next + direction + options.length) % options.length;
+      if (!options[next].disabled) {
+        setActive(next);
+        return;
+      }
+    }
+  }
+
+  return (
+    <div
+      ref={root}
+      className="dropdown"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <select
+        className="dropdown-native"
+        name={name}
+        value={value}
+        required={required}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => {
+          setValue(event.target.value);
+          setInvalid(false);
+        }}
+        onInvalid={(event) => {
+          event.preventDefault();
+          setInvalid(true);
+          trigger.current?.focus();
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value} disabled={option.disabled}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <button
+        ref={trigger}
+        type="button"
+        role="combobox"
+        className="dropdown-trigger"
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={`${id}-list`}
+        aria-haspopup="listbox"
+        aria-required={required}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? `${id}-error` : undefined}
+        aria-activedescendant={open ? `${id}-option-${active}` : undefined}
+        onClick={() => {
+          setActive(
+            Math.max(
+              0,
+              options.findIndex((o) => o.value === value),
+            ),
+          );
+          setOpen(!open);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && open) {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+          } else if (event.key === 'Tab') setOpen(false);
+          else if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
+            event.preventDefault();
+            if (!open) {
+              setOpen(true);
+              setActive(
+                Math.max(
+                  0,
+                  options.findIndex((o) => o.value === value),
+                ),
+              );
+            } else move(event.key === 'ArrowDown' ? 1 : -1);
+          } else if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault();
+            setOpen(true);
+            const enabled = options.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0);
+            setActive(event.key === 'Home' ? enabled[0] : enabled[enabled.length - 1]);
+          } else if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (open) choose(active);
+            else setOpen(true);
+          } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            const now = Date.now();
+            search.current = {
+              text: now - search.current.time < 600 ? search.current.text + event.key : event.key,
+              time: now,
+            };
+            const index = options.findIndex(
+              (o) =>
+                !o.disabled && o.label.toLowerCase().startsWith(search.current.text.toLowerCase()),
+            );
+            if (index >= 0) {
+              setActive(index);
+              setOpen(true);
+            }
+          }
+        }}
+      >
+        <span>{options.find((option) => option.value === value)?.label}</span>
+        <ChevronDown size={15} />
+      </button>
+      {open && (
+        <div id={`${id}-list`} role="listbox" aria-label={label} className="dropdown-menu">
+          {options.map((option, index) => (
+            <div
+              id={`${id}-option-${index}`}
+              role="option"
+              aria-selected={option.value === value}
+              aria-disabled={option.disabled || undefined}
+              key={option.value}
+              className={`dropdown-option ${active === index ? 'highlighted' : ''}`}
+              onPointerMove={() => {
+                if (!option.disabled) setActive(index);
+              }}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => choose(index)}
+            >
+              {option.label}
+            </div>
+          ))}
+        </div>
+      )}
+      {invalid && (
+        <p id={`${id}-error`} className="dropdown-error" role="alert">
+          Please select {label.toLowerCase()}.
+        </p>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/partners.tsx">
+'use client';
+import Link from 'next/link';
+import { useState } from 'react';
+import { ChevronRight, ChevronLeft, ExternalLink, Globe, Mail } from 'lucide-react';
+import type { Partner } from '@/lib/types';
+import { initials } from '@/lib/data';
+import { Card, Modal } from './ui';
+export function PartnerDirectory({ partners }: { partners: Partner[] }) {
+  const [query, setQuery] = useState('');
+  const [region, setRegion] = useState('All Regions');
+  const regions = ['All Regions', ...Array.from(new Set(partners.map((p) => p.region)))];
+  const filtered = partners.filter(
+    (p) =>
+      (region === 'All Regions' || p.region === region) &&
+      `${p.name} ${p.tags.join(' ')} ${p.region}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  return (
+    <>
+      <div className="page-heading">
+        <h1>Partner Directory</h1>
+      </div>
+      <Card className="directory-search">
+        <label className="sr-only" htmlFor="partner-search">
+          Search organisations or focus areas
+        </label>
+        <input
+          id="partner-search"
+          placeholder="Search organisations, focus areas…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="region-filters" aria-label="Filter partners by region">
+          {regions.map((r) => (
+            <button
+              className={region === r ? 'selected' : ''}
+              key={r}
+              aria-pressed={region === r}
+              onClick={() => setRegion(r)}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </Card>
+      <p className="eyebrow directory-label">SUB-PARTNERS</p>
+      <div className="subpartners">
+        {partners.slice(0, 3).map((p) => (
+          <Link href={`/partners/${p.id}`} className="card" key={p.id}>
+            <span className="avatar">{p.initials}</span>
+            <strong>{p.initials}</strong>
+            <small>{p.region}</small>
+          </Link>
+        ))}
+      </div>
+      <p className="eyebrow directory-label">ALL PARTNERS</p>
+      <div className="stack partner-list">
+        {filtered.map((p) => (
+          <article className="card partner-card" key={p.id}>
+            <Link className="partner-main" href={`/partners/${p.id}`}>
+              <span className="avatar">{p.initials}</span>
+              <div>
+                <h3>{p.name}</h3>
+                <p>{p.region}</p>
+                <div className="tags">
+                  <span className={`tag category ${p.category.toLowerCase()}`}>{p.category}</span>
+                  {p.tags.slice(0, 2).map((t) => (
+                    <span className="tag" key={t}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <ChevronRight size={16} />
+            </Link>
+            <div className="partner-footer">
+              <span>Partner since {p.since}</span>
+              <a href={`https://${p.website}`} target="_blank" rel="noreferrer">
+                {p.website}
+                <ExternalLink size={12} />
+              </a>
+            </div>
+          </article>
+        ))}
+        {!filtered.length && (
+          <Card className="empty-state">
+            <h2>No partners found</h2>
+            <p>Try another organisation, focus area or region.</p>
+            <button
+              className="button small"
+              onClick={() => {
+                setQuery('');
+                setRegion('All Regions');
+              }}
+            >
+              Clear filters
+            </button>
+          </Card>
+        )}
+      </div>
+    </>
+  );
+}
+export function PartnerDetail({ partner: p }: { partner: Partner }) {
+  const [message, setMessage] = useState(false);
+  return (
+    <>
+      <Link href="/partners" className="back-link">
+        <ChevronLeft size={16} />
+        Partner Directory
+      </Link>
+      <div className="stack partner-detail">
+        <section className="hero">
+          <div className="row">
+            <span className="avatar large">{p.initials}</span>
+            <div>
+              <p className="eyebrow">
+                {p.category.toUpperCase()} · PARTNER SINCE {p.since}
+              </p>
+              <h1>{p.name}</h1>
+            </div>
+          </div>
+          <div className="tags">
+            {p.tags.map((t) => (
+              <span className="tag" key={t}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
+        <Card>
+          <h2 className="eyebrow">ABOUT</h2>
+          <p className="about-copy">{p.about}</p>
+        </Card>
+        <Card>
+          <h2 className="eyebrow">CONTACT AT CONVENING</h2>
+          <div className="row contact">
+            <span className="avatar">{initials(p.contact)}</span>
+            <div>
+              <h3>{p.contact}</h3>
+              <p className="muted">{p.email || 'Contact details available from event staff'}</p>
+            </div>
+          </div>
+        </Card>
+        <a
+          href={`https://${p.website}`}
+          target="_blank"
+          rel="noreferrer"
+          className="button full partner-action"
+        >
+          <Globe size={18} />
+          Visit Website
+          <ExternalLink size={16} />
+        </a>
+        <button className="button secondary full partner-action" onClick={() => setMessage(true)}>
+          <Mail size={18} />
+          Send Message
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      {message && (
+        <Modal title={`Message ${p.contact}`} onClose={() => setMessage(false)}>
+          {p.email ? (
+            <>
+              <p>This opens your email app with the partner’s contact address.</p>
+              <a
+                className="button full mt-5"
+                href={`mailto:${p.email}?subject=OAK%20Partner%20Convening%202026`}
+                onClick={() => setMessage(false)}
+              >
+                <Mail size={18} />
+                Open email app
+              </a>
+            </>
+          ) : (
+            <p>
+              A contact email was not supplied for this partner. Please speak to the coordination
+              team at the event registration desk.
+            </p>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+}
+</file>
+
+<file path="src/components/programme.tsx">
+'use client';
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  Star,
+  MapPin,
+  ChevronDown,
+  NotebookPen,
+  ImageIcon,
+  Lightbulb,
+  Download,
+  FileText,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import type { Session, Note } from '@/lib/types';
+import { initials, takeaways, resources } from '@/lib/data';
+import { Card, Modal, Status, requestJson } from './ui';
+import { Dropdown } from './dropdown';
+export function Programme({
+  sessions,
+  initialNotes,
+}: {
+  sessions: Session[];
+  initialNotes: Note[];
+}) {
+  const params = useSearchParams();
+  const router = useRouter();
+  const docs = params.get('tab') === 'docs';
+  const day = Math.max(1, Math.min(3, Number(params.get('day')) || 1));
+  const [notes, setNotes] = useState(initialNotes);
+  const [editing, setEditing] = useState<Note | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState<number | null>(null);
+  const [resourceError, setResourceError] = useState('');
+  const featured = sessions.find((s) => s.day === day && s.featured);
+  const photoLabels = [
+    'Convening audience',
+    'Microphone and event gathering',
+    'Participants sharing ideas',
+    'Conference room',
+    'Partner presentation',
+    'Arrival at the convening',
+  ];
+  function navigate(tab: string, d = day) {
+    router.replace(`/programme?tab=${tab}&day=${d}`, { scroll: false });
+  }
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    const form = new FormData(e.currentTarget);
+    try {
+      const result = await requestJson('/api/notes', {
+        ...Object.fromEntries(form),
+        day: Number(form.get('day')),
+        id: editing?.id,
+      });
+      setNotes(
+        editing
+          ? notes.map((n) => (n.id === editing.id ? result.note : n))
+          : [...notes, result.note],
+      );
+      setAdding(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function download(id: string) {
+    setResourceError('');
+    try {
+      const result = await requestJson(`/api/resources/${id}`);
+      window.location.assign(result.url);
+    } catch (e) {
+      setResourceError((e as Error).message);
+    }
+  }
+  return (
+    <>
+      <div className="page-heading">
+        <h1>Programme</h1>
+        <p>OAK Partner Convening 2026</p>
+      </div>
+      <div className="segmented" aria-label="Programme view">
+        <button
+          aria-pressed={!docs}
+          className={!docs ? 'selected' : ''}
+          onClick={() => navigate('schedule')}
+        >
+          Schedule
+        </button>
+        <button
+          aria-pressed={docs}
+          className={docs ? 'selected' : ''}
+          onClick={() => navigate('docs')}
+        >
+          Docs
+        </button>
+      </div>
+      {!docs ? (
+        <>
+          <div className="day-grid">
+            {['MON', 'TUE', 'WED'].map((label, i) => (
+              <button
+                key={label}
+                aria-pressed={day === i + 1}
+                onClick={() => navigate('schedule', i + 1)}
+                className={`card day-card ${day === i + 1 ? 'selected' : ''}`}
+              >
+                <span className="eyebrow">{label}</span>
+                <strong>Day {i + 1}</strong>
+                <span>{9 + i} Nov</span>
+              </button>
+            ))}
+          </div>
+          {featured && (
+            <section className="featured">
+              <div className="row eyebrow">
+                <Star size={14} fill="currentColor" />
+                FEATURED<span>·</span>
+                <span>
+                  {featured.time} – {featured.end}
+                </span>
+              </div>
+              <h2>{featured.title}</h2>
+              <p className="row">
+                <span className="mini-avatar">{featured.speaker[0]}</span>
+                {featured.speaker}
+              </p>
+              <p className="row">
+                <MapPin size={14} />
+                {featured.venue}
+              </p>
+              <details className="mt-4">
+                <summary>View session details</summary>
+                <p>{featured.description}</p>
+              </details>
+            </section>
+          )}
+          <div className="legend">
+            {['Plenary', 'Breakout', 'Workshop', 'Social'].map((type) => (
+              <span key={type}>
+                <i className={`dot ${type.toLowerCase()}`} />
+                {type}
+              </span>
+            ))}
+          </div>
+          <div className="schedule-list">
+            {sessions
+              .filter((s) => s.day === day && !s.featured)
+              .map((s) =>
+                s.type === 'Break' ? (
+                  <div className="break-row" key={s.id}>
+                    <time>{s.time}</time>
+                    <span />
+                    <p>{s.title}</p>
+                    <span />
+                  </div>
+                ) : (
+                  <details className="card session" key={s.id}>
+                    <summary>
+                      <div className="session-time">
+                        <strong>{s.time}</strong>
+                        <span>–{s.end}</span>
+                      </div>
+                      <div className="session-body">
+                        <div className="session-title">
+                          <h3>{s.title}</h3>
+                          <span className={`badge ${s.type.toLowerCase()}`}>● {s.type}</span>
+                        </div>
+                        {s.speaker && <p>{s.speaker}</p>}
+                        <p className="row">
+                          <MapPin size={13} />
+                          {s.venue}
+                        </p>
+                      </div>
+                      <ChevronDown className="disclosure" size={15} />
+                    </summary>
+                    <p className="session-description">{s.description}</p>
+                  </details>
+                ),
+              )}
+          </div>
+        </>
+      ) : (
+        <div className="docs stack">
+          <section>
+            <div className="section-title row between">
+              <h2 className="row">
+                <NotebookPen size={19} />
+                My Session Notes
+              </h2>
+              <button
+                className="button small"
+                onClick={() => {
+                  setEditing(null);
+                  setAdding(true);
+                  setError('');
+                }}
+              >
+                <Plus size={13} />
+                Add Note
+              </button>
+            </div>
+            <div className="stack notes-list">
+              {notes.map((note) => (
+                <Card key={note.id} className="note">
+                  <div className="note-header">
+                    <span className="avatar small">{initials(note.name)}</span>
+                    <div>
+                      <strong>{note.name}</strong>
+                      <small>{note.organisation}</small>
+                    </div>
+                    <span className="time-label">
+                      Day {note.day} · {note.time}
+                    </span>
+                  </div>
+                  <p className="muted">{sessions.find((s) => s.id === note.sessionId)?.title}</p>
+                  <p>{note.text}</p>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setEditing(note);
+                      setAdding(true);
+                    }}
+                  >
+                    Edit note
+                  </button>
+                </Card>
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="section-title row between">
+              <h2 className="row">
+                <ImageIcon size={19} />
+                Photo Gallery
+              </h2>
+              <span className="time-label">6 photos</span>
+            </div>
+            <div className="gallery">
+              {photoLabels.map((label, i) => (
+                <button
+                  key={label}
+                  aria-label={`View photo ${i + 1}: ${label}`}
+                  onClick={() => setPhoto(i)}
+                >
+                  <img
+                    src={`/gallery/${i + 1}.jpg`}
+                    alt={label}
+                    width={260}
+                    height={190}
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h2 className="section-title row">
+              <Lightbulb size={20} />
+              Key Takeaways
+            </h2>
+            <Card>
+              <ol className="takeaways">
+                {takeaways.map((t, i) => (
+                  <li key={t}>
+                    <span>{i + 1}</span>
+                    <p>{t}</p>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          </section>
+          <section>
+            <h2 className="section-title row">
+              <Download size={19} />
+              Resources
+            </h2>
+            <div className="stack resource-list">
+              {resources.map((r) => (
+                <button key={r.id} onClick={() => download(r.id)} className="card resource">
+                  <span className="file-icon">
+                    <FileText size={18} />
+                  </span>
+                  <span>
+                    <strong>{r.name}</strong>
+                    <small>{r.detail}</small>
+                  </span>
+                  <Download size={17} />
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+      {adding && (
+        <Modal
+          title={editing ? 'Edit session note' : 'Add a session note'}
+          onClose={() => setAdding(false)}
+        >
+          <form className="form-stack" onSubmit={save}>
+            <label className="field">
+              <span>Your name</span>
+              <input
+                name="name"
+                defaultValue={editing?.name}
+                required
+                maxLength={160}
+                autoComplete="name"
+              />
+            </label>
+            <label className="field">
+              <span>Organisation</span>
+              <input
+                name="organisation"
+                defaultValue={editing?.organisation}
+                required
+                maxLength={160}
+              />
+            </label>
+            <div className="field">
+              <span>Day</span>
+              <Dropdown
+                name="day"
+                label="Day"
+                defaultValue={String(editing?.day ?? day)}
+                options={[1, 2, 3].map((d) => ({
+                  value: String(d),
+                  label: `Day ${d} · ${8 + d} November`,
+                }))}
+              />
+            </div>
+            <div className="field">
+              <span>Session</span>
+              <Dropdown
+                name="sessionId"
+                label="Session"
+                required
+                defaultValue={editing?.sessionId ?? ''}
+                options={[
+                  { value: '', label: 'Select a session', disabled: true },
+                  ...sessions
+                    .filter((s) => s.type !== 'Break')
+                    .map((s) => ({ value: s.id, label: `Day ${s.day} · ${s.title}` })),
+                ]}
+              />
+            </div>
+            <label className="field">
+              <span>Session note</span>
+              <textarea
+                name="text"
+                defaultValue={editing?.text}
+                required
+                minLength={5}
+                maxLength={3000}
+                placeholder="Share an insight or a follow-up from your session…"
+              />
+            </label>
+            <Status error>{error}</Status>
+            <button className="button" disabled={busy}>
+              {busy ? 'Saving…' : 'Save note'}
+            </button>
+          </form>
+        </Modal>
+      )}
+      {photo !== null && (
+        <Modal title={`Photo ${photo + 1} of 6`} onClose={() => setPhoto(null)}>
+          <img
+            className="lightbox-image"
+            src={`/gallery/${photo + 1}.jpg`}
+            alt={photoLabels[photo]}
+          />
+          <p className="muted">{photoLabels[photo]}</p>
+          <div className="row between photo-controls">
+            <button className="button secondary small" onClick={() => setPhoto((photo + 5) % 6)}>
+              <ChevronLeft size={15} />
+              Previous
+            </button>
+            <button className="button secondary small" onClick={() => setPhoto((photo + 1) % 6)}>
+              Next
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </Modal>
+      )}
+      {resourceError && (
+        <Modal title="Resource unavailable" onClose={() => setResourceError('')}>
+          <p>{resourceError}</p>
+          <button className="button full mt-5" onClick={() => setResourceError('')}>
+            Close
+          </button>
+        </Modal>
+      )}
+    </>
+  );
+}
+</file>
+
+<file path="src/components/registration.tsx">
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import QRCode from 'qrcode';
+import { CalendarDays, Layers, Users, CheckCircle2, Download, RotateCcw } from 'lucide-react';
+import { Card, Status, requestJson } from './ui';
+import type { Registration } from '@/lib/types';
+import { event } from '@/lib/data';
+import { registrationRoles } from '@/lib/roles';
+import { Dropdown } from './dropdown';
+export function RegistrationPage({ initial }: { initial: Registration | null }) {
+  const [entry, setEntry] = useState(initial);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [qr, setQr] = useState('');
+  useEffect(() => {
+    let active = true;
+    if (entry?.role === 'Partner')
+      QRCode.toDataURL(entry.code, {
+        width: 420,
+        margin: 4,
+        color: { dark: '#20345f', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
+      })
+        .then((url) => {
+          if (active) setQr(url);
+        })
+        .catch(() =>
+          setError('Unable to create the QR image. Your entry code below remains valid.'),
+        );
+    return () => {
+      active = false;
+    };
+  }, [entry]);
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    const form = new FormData(e.currentTarget);
+    try {
+      const data = await requestJson('/api/register', {
+        ...Object.fromEntries(form),
+        consent: form.get('consent') === 'on',
+      });
+      window.location.assign(
+        data.registration.role === 'Partner'
+          ? '/qr-code'
+          : data.registration.role === 'Coordination Team'
+            ? '/check-in'
+            : '/programme',
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return entry ? (
+    <div className="stack registration-page">
+      <section className="hero pass-hero">
+        <CheckCircle2 className="hero-icon" size={52} />
+        <div>
+          <p className="eyebrow">REGISTRATION COMPLETE</p>
+          <h1>
+            You’re Registered,
+            <br />
+            {entry.firstName}!
+          </h1>
+          <p>{entry.organisation}</p>
+        </div>
+      </section>
+      <p className="muted">
+        {entry.emailStatus === 'sent'
+          ? 'A confirmation email with your QR code has been sent.'
+          : 'Your registration is saved. Download your QR code below; confirmation email is currently unavailable.'}
+      </p>
+      <Card className="entry-pass">
+        <p className="eyebrow">YOUR ENTRY PASS</p>
+        <div className="qr-frame">
+          {qr ? (
+            <img src={qr} width={230} height={230} alt="Your event entry QR code" />
+          ) : (
+            <p>Preparing QR code…</p>
+          )}
+        </div>
+        <p className="entry-code">{entry.code}</p>
+        <p>Present at event entrance for check-in</p>
+      </Card>
+      <Card>
+        <h2 className="eyebrow">REGISTRATION DETAILS</h2>
+        <dl className="details">
+          {[
+            ['Registration ID', entry.id],
+            ['Status', 'Registered'],
+            ['Name', `${entry.firstName} ${entry.lastName}`],
+            ['Organisation', entry.organisation],
+            ['Role', entry.role],
+            ['Email', entry.email],
+            ['Phone', entry.phone || '—'],
+            ['Event', event.dates],
+            ['Location', 'Harare, Zimbabwe'],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+      <Status error>{error}</Status>
+      <a
+        className="button full"
+        download={`OAK-entry-pass-${entry.firstName}.png`}
+        href={qr || undefined}
+        aria-disabled={!qr}
+      >
+        <Download size={18} />
+        Download QR Code
+      </a>
+      <button
+        className="text-button"
+        onClick={() => {
+          setEntry(null);
+          setQr('');
+        }}
+      >
+        <RotateCcw size={16} />
+        Register another attendee
+      </button>
+    </div>
+  ) : (
+    <div className="stack registration-page">
+      <section className="hero registration-hero">
+        <h1>
+          Partner
+          <br />
+          Convening 2026
+        </h1>
+        <p>
+          {event.location} · {event.dates}
+        </p>
+      </section>
+      <div className="stats-grid">
+        {[
+          [Users, '110+', 'Attendees'],
+          [CalendarDays, '24', 'Sessions'],
+          [Layers, '38', 'Partners'],
+        ].map(([Icon, value, label]) => {
+          const Component = Icon as typeof Users;
+          return (
+            <Card key={String(label)} className="stat">
+              <Component size={18} />
+              <strong>{String(value)}</strong>
+              <span>{String(label)}</span>
+            </Card>
+          );
+        })}
+      </div>
+      <Card className="registration-card">
+        <h2>Registration Form</h2>
+        <form onSubmit={submit} className="form-stack">
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="First name"
+              name="firstName"
+              placeholder="Maria"
+              required
+              autoComplete="given-name"
+            />
+            <Field
+              label="Last name"
+              name="lastName"
+              placeholder="Schmidt"
+              required
+              autoComplete="family-name"
+            />
+          </div>
+          <Field
+            label="Organisation"
+            name="organisation"
+            placeholder="Your organisation name"
+            required
+            autoComplete="organization"
+          />
+          <Field label="Sub-partner / Programme area" name="programmeArea" placeholder="Optional" />
+          <div className="field">
+            <span>
+              Role / Capacity <em>*</em>
+            </span>
+            <Dropdown
+              name="role"
+              label="Role / Capacity"
+              required
+              options={[
+                { value: '', label: 'Select your role', disabled: true },
+                ...registrationRoles.map((role) => ({ value: role, label: role })),
+              ]}
+            />
+          </div>
+          <Field
+            label="Email address"
+            name="email"
+            placeholder="you@organisation.org"
+            type="email"
+            required
+            autoComplete="email"
+          />
+          <Field
+            label="Phone number"
+            name="phone"
+            placeholder="+41 xx xxx xx xx"
+            type="tel"
+            autoComplete="tel"
+            required
+          />
+          <fieldset className="requirements">
+            <legend className="sr-only">Requirements</legend>
+            <p className="eyebrow">REQUIREMENTS</p>
+            <Field
+              label="Dietary requirements"
+              name="dietary"
+              placeholder="e.g. Vegetarian, Halal, Gluten-free"
+              maxLength={500}
+            />
+            <Field
+              label="Accessibility requirements"
+              name="accessibility"
+              placeholder="e.g. Wheelchair access, hearing loop"
+              maxLength={500}
+            />
+            <Field
+              label="Travel requirements"
+              name="travel"
+              placeholder="e.g. Flight from London"
+              maxLength={500}
+            />
+            <Field
+              label="Accommodation requirements"
+              name="accommodation"
+              placeholder="e.g. Hotel accommodation needed"
+              maxLength={500}
+            />
+          </fieldset>
+          <label className="consent">
+            <input name="consent" type="checkbox" required />
+            <span>
+              I agree to OAK Foundation’s{' '}
+              <Link href="/privacy" target="_blank">
+                privacy policy
+              </Link>{' '}
+              and consent to my registration data being used for event coordination.
+            </span>
+          </label>
+          <div className="honeypot" aria-hidden="true">
+            <label>
+              Website
+              <input name="website" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
+          <Status error>{error}</Status>
+          <button className="button full" disabled={busy}>
+            {busy ? 'Registering…' : 'Register'}
+          </button>
+        </form>
+      </Card>
+      <p className="privacy-footer">
+        Your data is secured and handled by OAK Foundation in accordance with GDPR.
+      </p>
+    </div>
+  );
+}
+function Field({
+  label,
+  name,
+  required = false,
+  ...props
+}: {
+  label: string;
+  name: string;
+  required?: boolean;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="field">
+      <span>
+        {label} {required && <em>*</em>}
+      </span>
+      <input name={name} required={required} maxLength={160} {...props} />
+    </label>
+  );
+}
+</file>
+
+<file path="src/components/shell.tsx">
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  CalendarDays,
+  Globe,
+  UserPlus,
+  ScanLine,
+  LayoutGrid,
+  LogOut,
+  ShieldCheck,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
+export function Shell({
+  children,
+  demo,
+  role,
+}: {
+  children: ReactNode;
+  demo: boolean;
+  role: string | null;
+}) {
+  const path = usePathname();
+  const staff = role === 'Coordination Team';
+  const internal = staff;
+  const nav = [
+    { href: '/', label: 'Register', icon: UserPlus },
+    ...(internal ? [{ href: '/check-in', label: 'Check In', icon: ScanLine }] : []),
+    ...(role === 'Partner' ? [{ href: '/qr-code', label: 'My QR Code', icon: ScanLine }] : []),
+    ...(role && role !== 'Partner'
+      ? [
+          { href: '/programme', label: 'Programme', icon: CalendarDays },
+          { href: '/partners', label: 'Partners', icon: Globe },
+        ]
+      : []),
+    ...(internal ? [{ href: '/attendance', label: 'Attendance', icon: LayoutGrid }] : []),
+  ];
+  return (
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <header className="mobile-header mobile-image-header">
+        <Link href="/" aria-label="OAK Foundation home"><img className="oak-brand-image" src="/oak-brand.png" width={255} height={130} alt="OAK Foundation — Partner Convening 2026" /></Link>
+      </header>
+      <aside className="sidebar">
+        <Link href="/" className="desktop-brand desktop-image-brand" aria-label="OAK Foundation home">
+          <img className="oak-brand-image" src="/oak-brand.png" width={255} height={130} alt="OAK Foundation — Partner Convening 2026" />
+        </Link>
+        <nav aria-label="Main navigation">
+          <p className="eyebrow" style={{ padding: '8px 12px' }}>
+            {role ?? 'Register to access the event'}
+          </p>
+          {nav.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={
+                (href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined
+              }
+              className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'active' : ''}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <Globe size={19} />
+          <div>
+            <strong>Harare, Zimbabwe</strong>
+            <small>9–11 November 2026</small>
+          </div>
+        </div>
+      </aside>
+      <div className="main-shell">
+        <main id="main">
+          {children}
+          <footer className="utility-footer">
+            {demo && <span className="demo-label">Local demo · sample event content</span>}
+            <Link href={staff ? '/attendance' : '/staff'}>
+              <ShieldCheck size={13} />
+              {staff ? 'Staff area' : 'Staff sign-in'}
+            </Link>
+            {staff && !demo && (
+              <button
+                onClick={async () => {
+                  await fetch('/api/auth/sign-out', { method: 'POST' });
+                  window.location.href = '/';
+                }}
+              >
+                <LogOut size={13} />
+                Sign out
+              </button>
+            )}
+          </footer>
+        </main>
+      </div>
+      <nav className="bottom-nav" aria-label="Mobile navigation">
+        {nav.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={
+              (href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined
+            }
+            className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'active' : ''}
+          >
+            <Icon size={21} />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
+    </>
+  );
+}
+</file>
+
+<file path="src/components/staff-login.tsx">
+'use client';
+import Link from 'next/link';
+import { useState } from 'react';
+import { ShieldCheck, ScanLine } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Card, Status } from './ui';
+export function StaffLogin({ demo }: { demo: boolean }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function login(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    const form = new FormData(e.currentTarget);
+    try {
+      const client = createClient();
+      const { error } = await client.auth.signInWithPassword({
+        email: String(form.get('email')),
+        password: String(form.get('password')),
+      });
+      if (error) throw error;
+      const {
+        data: { user },
+      } = await client.auth.getUser();
+      const { data } = await client
+        .from('staff')
+        .select('user_id')
+        .eq('user_id', user!.id)
+        .maybeSingle();
+      if (!data) {
+        await client.auth.signOut();
+        throw new Error(
+          'This account is not assigned to event staff. Contact the project administrator.',
+        );
+      }
+      window.location.href = '/attendance';
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="page-heading">
+        <h1>Coordination Team sign-in</h1>
+        <p>Event check-in and attendance</p>
+      </div>
+      <Card>
+        {demo ? (
+          <div className="empty-state">
+            <ShieldCheck size={36} />
+            <h2>Coordination Team access</h2>
+            <p>
+              Register as Coordination Team to open Check-in, Programme, Partners, and Attendance.
+            </p>
+            <Link className="button" href="/">
+              Register for the event
+            </Link>
+          </div>
+        ) : (
+          <form className="form-stack" onSubmit={login}>
+            <label className="field">
+              <span>Staff email</span>
+              <input type="email" name="email" autoComplete="username" required />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input type="password" name="password" autoComplete="current-password" required />
+            </label>
+            <Status error>{error}</Status>
+            <button className="button full" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            <p className="muted">
+              Use the staff account provided by your event administrator. Contact them if you need
+              to reset your password.
+            </p>
+          </form>
+        )}
+      </Card>
+    </>
+  );
+}
+</file>
+
+<file path="src/components/ui.tsx">
+'use client';
+import { useEffect, useRef, useId, type ReactNode } from 'react';
+import { X } from 'lucide-react';
+export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <section className={`card ${className}`}>{children}</section>;
+}
+export function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const el = ref.current;
+    el?.showModal();
+    return () => el?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      onCancel={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="modal"
+    >
+      <div className="row between">
+        <h2 id={titleId}>{title}</h2>
+        <button className="icon-button" aria-label="Close dialog" onClick={onClose}>
+          <X size={20} />
+        </button>
+      </div>
+      {children}
+    </dialog>
+  );
+}
+export function Status({ children, error = false }: { children: ReactNode; error?: boolean }) {
+  return children ? (
+    <p role={error ? 'alert' : 'status'} className={`status ${error ? 'error' : ''}`}>
+      {children}
+    </p>
+  ) : null;
+}
+export async function requestJson(url: string, body?: unknown) {
+  const response = await fetch(url, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new Error(data.error ?? 'Unable to complete the request. Please try again.');
+  return data;
+}
+</file>
+
+<file path="src/lib/supabase/admin.ts">
+import 'server-only';
+import { createClient } from '@supabase/supabase-js';
+export function adminClient() {
+  if (!process.env.SUPABASE_SECRET_KEY)
+    throw new Error('Supabase server key is missing. Complete .env.local setup.');
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+</file>
+
+<file path="src/lib/supabase/client.ts">
+'use client';
+import { createBrowserClient } from '@supabase/ssr';
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  );
+}
+</file>
+
+<file path="src/lib/supabase/config.ts">
+export const isConfigured = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (Boolean(url) !== Boolean(key)) {
+    throw new Error(
+      'Set both public Supabase environment variables, or leave both blank for local demo mode.',
+    );
+  }
+  return Boolean(url && key);
+};
+</file>
+
+<file path="src/lib/supabase/server.ts">
+import 'server-only';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+export async function createClient() {
+  const jar = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => jar.getAll(),
+        setAll: (values) => {
+          try {
+            values.forEach(({ name, value, options }) => jar.set(name, value, options));
+          } catch {
+            /* Server Component cookies are refreshed by proxy. */
+          }
+        },
+      },
+    },
+  );
+}
+</file>
+
+<file path="src/lib/access.ts">
+import 'server-only';
+import { redirect } from 'next/navigation';
+import { myRegistration, staffUser } from './repository';
+export async function currentRole() {
+  if (await staffUser()) return 'Coordination Team';
+  return (await myRegistration())?.role ?? null;
+}
+export async function requirePage(roles: string[]) {
+  const role = await currentRole();
+  if (!role) redirect('/');
+  if (!roles.includes(role)) redirect(role === 'Partner' ? '/qr-code' : '/programme');
+}
+export const programmeRoles = ['OAK Staff', 'Coordination Team', 'Presenter', 'Observer'];
+</file>
+
+<file path="src/lib/api.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { isConfigured } from './supabase/config';
+import { staffUser } from './repository';
+import { currentRole } from './access';
+export function fail(error: unknown, status = 400) {
+  return NextResponse.json(
+    { error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' },
+    { status },
+  );
+}
+export function guard(request: NextRequest) {
+  if (!isConfigured() && !['localhost', '127.0.0.1', '[::1]'].includes(request.nextUrl.hostname))
+    throw new Error('Connect Supabase before using this app on a public host.');
+  const origin = request.headers.get('origin');
+  if (origin && new URL(origin).host !== request.headers.get('host'))
+    throw new Error('Request origin is not allowed.');
+}
+export async function requireStaff() {
+  if ((await currentRole()) !== 'Coordination Team')
+    throw new Error('Coordination Team access is required.');
+}
+</file>
+
+<file path="src/lib/confirmation-email.ts">
+import 'server-only';
+import QRCode from 'qrcode';
+import type { Registration } from './types';
+import { event } from './data';
+export async function sendConfirmation(entry: Registration) {
+  if (entry.role !== 'Partner') return 'not-applicable';
+  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return 'not-configured';
+  try {
+    const png = await QRCode.toBuffer(entry.code, { width: 600, margin: 4 });
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': `registration-${entry.id}`,
+      },
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM,
+        to: [entry.email],
+        subject: 'Your OAK Foundation event registration',
+        text: `You are registered, ${entry.firstName} ${entry.lastName}.\nOrganisation: ${entry.organisation}\nRegistration ID: ${entry.id}\nRole: ${entry.role}\nEvent: ${event.name}\nDates: ${event.dates}\nLocation: ${event.location}\nYour downloadable entry QR code is attached. Present it at event check-in.`,
+        attachments: [{ filename: 'OAK-entry-pass.png', content: png.toString('base64') }],
+      }),
+    });
+    return response.ok ? 'sent' : 'failed';
+  } catch {
+    return 'failed';
+  }
+}
+</file>
+
+<file path="src/lib/data.ts">
+import type { Partner, Session, Note } from './types';
+export const event = {
+  name: 'Partner Convening 2026',
+  location: 'Harare',
+  dates: '9–11 November 2026',
+  expected: 110,
+  sessions: 24,
+  partners: 38,
+};
+export const partners: Partner[] = [
+  {
+    id: 'osf',
+    initials: 'OSF',
+    name: 'Open Society Foundations',
+    region: 'Global',
+    category: 'Foundation',
+    tags: ['Democracy', 'Human Rights', 'Justice'],
+    since: 2018,
+    website: 'opensocietyfoundations.org',
+    about:
+      'Open Society Foundations builds vibrant and tolerant democracies. OAK partnership covers digital rights and justice initiatives across Eastern Europe and Central Asia.',
+    contact: 'Maria Schmidt',
+    email: 'm.schmidt@osf.org',
+  },
+  {
+    id: 'aca',
+    initials: 'ACA',
+    name: 'Africa Climate Alliance',
+    region: 'Sub-Saharan Africa',
+    category: 'NGO',
+    tags: ['Climate Justice', 'Youth Advocacy'],
+    since: 2020,
+    website: 'africaclimatealliance.org',
+    about:
+      'Connecting communities and advocates working for climate justice across Sub-Saharan Africa.',
+    contact: 'Samuel Okafor',
+    email: '',
+  },
+  {
+    id: 'nec',
+    initials: 'NEC',
+    name: 'Nordic Evaluation Centre',
+    region: 'Northern Europe',
+    category: 'Research',
+    tags: ['Evaluation', 'Learning'],
+    since: 2021,
+    website: 'nordicevaluation.org',
+    about:
+      'Supporting evaluation and shared learning to strengthen the impact of philanthropic programmes.',
+    contact: 'Dr. Ingrid Holm',
+    email: '',
+  },
+  {
+    id: 'mrg',
+    initials: 'MRG',
+    name: 'MENA Rights Group',
+    region: 'Middle East & North Africa',
+    category: 'NGO',
+    tags: ['Human Rights', 'Documentation'],
+    since: 2019,
+    website: 'menarights.org',
+    about: 'Promoting and protecting fundamental rights across the Middle East and North Africa.',
+    contact: 'Fatima Zahra Benali',
+    email: '',
+  },
+  {
+    id: 'dfi',
+    initials: 'DFI',
+    name: 'Digital Frontiers Institute',
+    region: 'Global / East Africa',
+    category: 'Research',
+    tags: ['Digital Rights', 'Internet Freedom'],
+    since: 2022,
+    website: 'digitalfrontiers.org',
+    about: 'Building capacity and sharing knowledge on digital rights and internet freedom.',
+    contact: 'Li Wei',
+    email: '',
+  },
+  {
+    id: 'gal',
+    initials: 'GAL',
+    name: 'Global Advocacy Lab',
+    region: 'Global',
+    category: 'NGO',
+    tags: ['Communications', 'Campaigns'],
+    since: 2023,
+    website: 'globaladvocacylab.org',
+    about: 'Collaborative approaches to strategic communications and effective advocacy campaigns.',
+    contact: 'Rashida Ahmed',
+    email: '',
+  },
+  {
+    id: 'sp',
+    initials: 'SP',
+    name: 'Sciences Po Paris',
+    region: 'Western Europe',
+    category: 'Academic',
+    tags: ['Research', 'Policy'],
+    since: 2020,
+    website: 'sciencespo.fr',
+    about: 'Bringing research and public policy perspectives to collaborative philanthropy.',
+    contact: 'Pierre-Alain Dubois',
+    email: '',
+  },
+  {
+    id: 'efg',
+    initials: 'EFG',
+    name: 'Environmental Funders Group',
+    region: 'Europe',
+    category: 'Network',
+    tags: ['Environment', 'Climate'],
+    since: 2017,
+    website: 'envfunders.eu',
+    about: 'A network for funders to exchange learning and coordinate environmental action.',
+    contact: 'Event coordination team',
+    email: '',
+  },
+];
+export const sessions: Session[] = [
+  {
+    id: 'welcome',
+    day: 1,
+    time: '08:00',
+    end: '09:00',
+    title: 'Registration & Welcome Coffee',
+    speaker: '',
+    venue: 'Foyer',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'opening',
+    day: 1,
+    time: '09:00',
+    end: '10:30',
+    title: 'Opening Plenary: Pathways to Impact',
+    speaker: 'Dr. Helena Moreau · OAK Foundation',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    featured: true,
+    description:
+      'Welcome to the OAK Partner Convening. Explore shared priorities, connect across programmes, and discuss pathways to lasting impact.',
+  },
+  {
+    id: 'coffee',
+    day: 1,
+    time: '10:30',
+    end: '10:50',
+    title: 'Coffee Break',
+    speaker: '',
+    venue: 'Foyer',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'climate',
+    day: 1,
+    time: '10:50',
+    end: '12:00',
+    title: 'Thematic Dialogue: Climate Justice & Grantmaking',
+    speaker: 'Samuel Okafor · Africa Climate Alliance',
+    venue: 'Conference Room B2',
+    type: 'Breakout',
+    description:
+      'An exchange on equitable grantmaking, community-led climate action and youth advocacy.',
+  },
+  {
+    id: 'learning',
+    day: 1,
+    time: '10:50',
+    end: '12:00',
+    title: 'Learning Together: Evidence & Impact',
+    speaker: 'Dr. Ingrid Holm · Nordic Evaluation Centre',
+    venue: 'Workshop Room C',
+    type: 'Workshop',
+    description:
+      'Share evaluation methods and practical approaches to learning across the portfolio.',
+  },
+  {
+    id: 'lunch',
+    day: 1,
+    time: '12:00',
+    end: '13:30',
+    title: 'Networking Lunch',
+    speaker: '',
+    venue: 'Dining Room',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'rights',
+    day: 1,
+    time: '13:30',
+    end: '14:30',
+    title: 'Partner Spotlight: Rights-Based Approaches',
+    speaker: 'Fatima Zahra Benali · MENA Rights Group',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    description:
+      'Partner perspectives on putting rights at the centre of programme design and advocacy.',
+  },
+  {
+    id: 'digital',
+    day: 1,
+    time: '14:45',
+    end: '16:00',
+    title: 'Digital Rights in Authoritarian Contexts',
+    speaker: 'Li Wei · Digital Frontiers Institute',
+    venue: 'Conference Room B1',
+    type: 'Breakout',
+    description: 'Practical collaboration on digital rights in restricted environments.',
+  },
+  {
+    id: 'dinner',
+    day: 1,
+    time: '18:00',
+    end: '20:00',
+    title: 'Welcome Reception & Dinner',
+    speaker: '',
+    venue: 'Rooftop Terrace',
+    type: 'Social',
+    description: 'Meet fellow partners and continue the day’s conversations.',
+  },
+  {
+    id: 'day2-opening',
+    day: 2,
+    time: '09:00',
+    end: '10:30',
+    title: 'Shared Learning Across the Portfolio',
+    speaker: 'OAK Foundation',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    featured: true,
+    description: 'A facilitated exchange on shared learning and collaboration.',
+  },
+  {
+    id: 'day2-coffee',
+    day: 2,
+    time: '10:30',
+    end: '11:00',
+    title: 'Coffee Break',
+    speaker: '',
+    venue: 'Foyer',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'communications',
+    day: 2,
+    time: '11:00',
+    end: '12:00',
+    title: 'Strategic Communications Workshop',
+    speaker: 'Rashida Ahmed · Global Advocacy Lab',
+    venue: 'Workshop Room C',
+    type: 'Workshop',
+    description: 'Explore adaptive messaging and campaign planning.',
+  },
+  {
+    id: 'day2-lunch',
+    day: 2,
+    time: '12:00',
+    end: '13:30',
+    title: 'Networking Lunch',
+    speaker: '',
+    venue: 'Dining Room',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'fishbowl',
+    day: 2,
+    time: '13:30',
+    end: '15:00',
+    title: 'Fishbowl: Long-Term Philanthropy',
+    speaker: 'Pierre-Alain Dubois · Sciences Po Paris',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    description: 'Discuss longer time horizons, shared learning and systemic change.',
+  },
+  {
+    id: 'collaboration',
+    day: 2,
+    time: '15:15',
+    end: '16:30',
+    title: 'Partner Collaboration Labs',
+    speaker: 'Convening facilitators',
+    venue: 'Conference Room B2',
+    type: 'Breakout',
+    description: 'Identify shared priorities and potential cross-programme collaborations.',
+  },
+  {
+    id: 'day2-reflections',
+    day: 2,
+    time: '16:30',
+    end: '17:00',
+    title: 'Daily Reflections',
+    speaker: 'OAK Foundation',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    description: 'Gather insights and questions from the day.',
+  },
+  {
+    id: 'day2-social',
+    day: 2,
+    time: '18:00',
+    end: '20:00',
+    title: 'Partner Networking Evening',
+    speaker: '',
+    venue: 'Rooftop Terrace',
+    type: 'Social',
+    description: 'An informal evening with convening partners.',
+  },
+  {
+    id: 'day3-opening',
+    day: 3,
+    time: '09:00',
+    end: '10:00',
+    title: 'From Learning to Collective Action',
+    speaker: 'OAK Foundation',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    featured: true,
+    description: 'Turn shared insights into practical next steps.',
+  },
+  {
+    id: 'action',
+    day: 3,
+    time: '10:00',
+    end: '11:00',
+    title: 'Action Planning Workshop',
+    speaker: 'Convening facilitators',
+    venue: 'Workshop Room C',
+    type: 'Workshop',
+    description: 'Build a practical action plan with your peers.',
+  },
+  {
+    id: 'day3-coffee',
+    day: 3,
+    time: '11:00',
+    end: '11:15',
+    title: 'Coffee Break',
+    speaker: '',
+    venue: 'Foyer',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'commitments',
+    day: 3,
+    time: '11:15',
+    end: '12:00',
+    title: 'Partner Commitments & Next Steps',
+    speaker: 'Partner representatives',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    description: 'Share commitments and agree ways to stay connected.',
+  },
+  {
+    id: 'day3-lunch',
+    day: 3,
+    time: '12:00',
+    end: '13:00',
+    title: 'Networking Lunch',
+    speaker: '',
+    venue: 'Dining Room',
+    type: 'Break',
+    description: '',
+  },
+  {
+    id: 'closing',
+    day: 3,
+    time: '13:00',
+    end: '14:00',
+    title: 'Closing Reflections',
+    speaker: 'Dr. Helena Moreau · OAK Foundation',
+    venue: 'Main Hall A',
+    type: 'Plenary',
+    description: 'Reflect on the convening and look ahead.',
+  },
+  {
+    id: 'farewell',
+    day: 3,
+    time: '14:00',
+    end: '15:00',
+    title: 'Farewell Coffee & Departures',
+    speaker: '',
+    venue: 'Foyer',
+    type: 'Social',
+    description: 'Say farewell and exchange contact details.',
+  },
+];
+export const initialNotes: Note[] = [
+  {
+    id: 'n1',
+    name: 'Maria Schmidt',
+    organisation: 'Open Society Foundations',
+    day: 1,
+    time: '14:32',
+    text: 'The rights-based approaches session surfaced strong demand for a shared learning platform. OSF will follow up with MENA Rights Group on joint programming opportunities in the Mediterranean region.',
+  },
+  {
+    id: 'n2',
+    name: 'James Odhiambo',
+    organisation: 'OAK Foundation',
+    day: 1,
+    time: '16:50',
+    text: 'Digital Rights breakout: participants want a working group to share tools for operating in restricted digital environments. Interested orgs: Digital Frontiers, Access Now, EFF.',
+  },
+  {
+    id: 'n3',
+    name: 'Awa Diallo',
+    organisation: 'Geneva Secretariat',
+    day: 2,
+    time: '11:15',
+    text: 'Strategic communications workshop highly rated. Rashida’s adaptive messaging framework is directly applicable across 60% of the portfolio. Requesting follow-up toolkit.',
+  },
+  {
+    id: 'n4',
+    name: 'Pierre-Alain Dubois',
+    organisation: 'Sciences Po Paris',
+    day: 2,
+    time: '15:00',
+    text: 'Fishbowl revealed consensus: philanthropy needs to accept longer time horizons (10+ years) and better share learning. Key ask: OAK to publish failure cases alongside success stories.',
+  },
+];
+export const takeaways = [
+  'Philanthropy needs to accept 10+ year time horizons for systemic change',
+  'Shared learning infrastructure is the most requested resource across the portfolio',
+  'Digital rights must be integrated into all programme areas, not siloed',
+  'Rights-based framing significantly improves grantee advocacy effectiveness',
+  'Peer exchange is rated more valuable than expert-led sessions (92% vs 74%)',
+];
+export const resources = [
+  {
+    id: 'opening-presentation',
+    name: 'Opening Plenary Presentation',
+    detail: 'PDF · 3.2 MB · Day 1',
+  },
+  {
+    id: 'portfolio-overview',
+    name: 'OAK Portfolio Overview 2024–26',
+    detail: 'PDF · 1.8 MB · Day 2',
+  },
+  { id: 'action-workbook', name: 'Action Planning Workbook', detail: 'DOCX · 0.9 MB · Day 3' },
+  {
+    id: 'partner-directory',
+    name: 'Partner Contact Directory',
+    detail: 'XLSX · 0.4 MB · All Days',
+  },
+  { id: 'photo-gallery', name: 'Photo Gallery (High Res)', detail: 'ZIP · 184 MB · All Days' },
+];
+export const initials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+</file>
+
+<file path="src/lib/repository.ts">
+import 'server-only';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+import path from 'node:path';
+import { cookies } from 'next/headers';
+import { adminClient } from './supabase/admin';
+import { createClient } from './supabase/server';
+import { isConfigured } from './supabase/config';
+import { initialNotes, partners, sessions } from './data';
+import type { Registration, Note, Partner, Session } from './types';
+type LocalData = { registrations: Registration[]; notes: Note[] };
+const localFile = path.join(process.cwd(), '.data', 'demo.json');
+const demoRuntime = globalThis as typeof globalThis & { oakDemoQueue?: Promise<unknown> };
+async function localRead(): Promise<LocalData> {
+  let data: LocalData;
+  try {
+    data = JSON.parse(await readFile(localFile, 'utf8'));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    data = { registrations: [], notes: [...initialNotes] };
+  }
+  // These fixed, synthetic passes are available only in the local demo.
+  const samples = [
+    ['collin', 'Collin', 'Manyande', 'Partner', 'OAK-2026-7842-XKPH'],
+    ['james', 'James', 'Odhiambo', 'OAK Staff', 'OAK-2026-1193-JWQA'],
+    ['awa', 'Awa', 'Diallo', 'Coordination Team', 'OAK-2026-8832-KLPT'],
+    ['kayden', 'Kayden', 'Mamu', 'Partner', 'OAK-2026-5592-FWBN'],
+  ];
+  for (const [id, firstName, lastName, role, code] of samples) {
+    const email = `${id}@example.test`;
+    if (data.registrations.some((r) => r.email === email)) continue;
+    data.registrations.push({
+      id: `demo-${id}`,
+      code: role === 'Partner' ? code : '',
+      firstName,
+      lastName,
+      role,
+      email,
+      organisation: role === 'OAK Staff' ? 'OAK Foundation' : 'Open Society Foundations',
+      programmeArea: '',
+      phone: '',
+      dietary: '',
+      accessibility: '',
+      travel: '',
+      consent: true,
+      createdAt: '2026-03-01T09:00:00.000Z',
+      checkedInAt: null,
+    });
+  }
+  return data;
+}
+function mutate<T>(fn: (data: LocalData) => T): Promise<T> {
+  const task = (demoRuntime.oakDemoQueue ?? Promise.resolve()).then(async () => {
+    const data = await localRead();
+    const result = fn(data);
+    await mkdir(path.dirname(localFile), { recursive: true });
+    const temp = localFile + '.tmp';
+    await writeFile(temp, JSON.stringify(data, null, 2));
+    await rename(temp, localFile);
+    return result;
+  });
+  demoRuntime.oakDemoQueue = task.catch(() => {});
+  return task;
+}
+export async function staffUser() {
+  if (!isConfigured()) return null;
+  const client = await createClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await client
+    .from('staff')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return user;
+}
+export async function content() {
+  if (!isConfigured()) return { partners, sessions, notes: (await localRead()).notes };
+  const client = adminClient();
+  const results = await Promise.all([
+    client.from('partners').select('data').order('position'),
+    client.from('sessions').select('data').order('position'),
+    client.from('notes').select('data').order('created_at'),
+  ]);
+  for (const result of results)
+    if (result.error)
+      throw new Error('Unable to load event content. Check the database migration.');
+  return {
+    partners: results[0].data!.map((r) => r.data) as Partner[],
+    sessions: results[1].data!.map((r) => r.data) as Session[],
+    notes: results[2].data!.map((r) => r.data) as Note[],
+  };
+}
+export async function register(
+  input: Omit<Registration, 'id' | 'code' | 'createdAt' | 'checkedInAt'>,
+) {
+  const entry: Registration = {
+    ...input,
+    id: randomUUID(),
+    code:
+      input.role === 'Partner' ? 'OAK-2026-' + randomBytes(16).toString('hex').toUpperCase() : '',
+    sessionToken: randomBytes(32).toString('hex'),
+    createdAt: new Date().toISOString(),
+    checkedInAt: null,
+  };
+  if (!isConfigured())
+    return mutate((data) => {
+      if (data.registrations.some((r) => r.email === entry.email))
+        throw new Error(
+          'This email is already registered. Use your saved pass or contact event staff.',
+        );
+      data.registrations.push(entry);
+      return entry;
+    });
+  const { error } = await adminClient()
+    .from('registrations')
+    .insert({ id: entry.id, code: entry.code || null, email: entry.email, data: entry });
+  if (error) {
+    if (error.code === '23505')
+      throw new Error(
+        'This email is already registered. Use your saved pass or contact event staff.',
+      );
+    throw new Error('Registration could not be saved. Please try again.');
+  }
+  return entry;
+}
+export async function findRegistration(code: string) {
+  if (!isConfigured())
+    return (await localRead()).registrations.find((r) => r.code === code) ?? null;
+  const { data, error } = await adminClient()
+    .from('registrations')
+    .select('data,checked_in_at')
+    .eq('code', code)
+    .maybeSingle();
+  if (error) throw new Error('Unable to retrieve registration.');
+  return data ? ({ ...data.data, checkedInAt: data.checked_in_at } as Registration) : null;
+}
+export async function myRegistration() {
+  const token = (await cookies()).get('oak-session')?.value;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
+  if (!isConfigured())
+    return (await localRead()).registrations.find((r) => r.sessionToken === token) ?? null;
+  const { data, error } = await adminClient()
+    .from('registrations')
+    .select('data,checked_in_at')
+    .eq('data->>sessionToken', token)
+    .maybeSingle();
+  if (error) throw new Error('Unable to retrieve your registration.');
+  return data ? ({ ...data.data, checkedInAt: data.checked_in_at } as Registration) : null;
+}
+export async function allRegistrations() {
+  if (!isConfigured()) return (await localRead()).registrations;
+  const { data, error } = await adminClient()
+    .from('registrations')
+    .select('data,checked_in_at')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error('Unable to load attendance.');
+  return data.map((r) => ({ ...r.data, checkedInAt: r.checked_in_at })) as Registration[];
+}
+export async function checkIn(code: string) {
+  if (!isConfigured())
+    return mutate((data) => {
+      const r = data.registrations.find((r) => r.code === code);
+      if (!r || r.role !== 'Partner') return null;
+      const already = !!r.checkedInAt;
+      r.checkedInAt ??= new Date().toISOString();
+      return { registration: r, already };
+    });
+  const candidate = await findRegistration(code);
+  if (!candidate || candidate.role !== 'Partner') return null;
+  const client = adminClient();
+  const { data, error } = await client
+    .from('registrations')
+    .update({ checked_in_at: new Date().toISOString() })
+    .eq('code', code)
+    .is('checked_in_at', null)
+    .select('data,checked_in_at')
+    .maybeSingle();
+  if (error) throw new Error('Check-in could not be saved.');
+  if (data)
+    return {
+      registration: { ...data.data, checkedInAt: data.checked_in_at } as Registration,
+      already: false,
+    };
+  const registration = await findRegistration(code);
+  return registration ? { registration, already: true } : null;
+}
+export async function addNote(input: Omit<Note, 'id' | 'time'>) {
+  const note = {
+    ...input,
+    id: randomUUID(),
+    time: new Date().toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Africa/Harare',
+    }),
+  };
+  if (!isConfigured())
+    return mutate((data) => {
+      data.notes.push(note);
+      return note;
+    });
+  const { error } = await adminClient().from('notes').insert({ id: note.id, data: note });
+  if (error) throw new Error('Could not save your note.');
+  return note;
+}
+
+export async function updateNote(id: string, ownerId: string, input: Omit<Note, 'id' | 'time'>) {
+  if (!isConfigured())
+    return mutate((data) => {
+      const note = data.notes.find((n) => n.id === id && n.ownerId === ownerId);
+      if (!note) throw new Error('Note not found.');
+      Object.assign(note, input);
+      return note;
+    });
+  const client = adminClient();
+  const { data } = await client
+    .from('notes')
+    .select('data')
+    .eq('id', id)
+    .eq('data->>ownerId', ownerId)
+    .maybeSingle();
+  if (!data) throw new Error('Note not found.');
+  const note = { ...data.data, ...input };
+  const { error } = await client
+    .from('notes')
+    .update({ data: note })
+    .eq('id', id)
+    .eq('data->>ownerId', ownerId);
+  if (error) throw new Error('Could not update note.');
+  return note as Note;
+}
+
+export async function recordEmailStatus(entry: Registration, emailStatus: string) {
+  entry.emailStatus = emailStatus;
+  if (!isConfigured())
+    return mutate((data) => {
+      const row = data.registrations.find((r) => r.id === entry.id);
+      if (row) row.emailStatus = emailStatus;
+    });
+  const { error } = await adminClient()
+    .from('registrations')
+    .update({ data: entry })
+    .eq('id', entry.id);
+  if (error) throw new Error('Email status could not be saved.');
+}
+</file>
+
+<file path="src/lib/roles.ts">
+export const registrationRoles = [
+  'Partner',
+  'OAK Staff',
+  'Coordination Team',
+  'Presenter',
+  'Observer',
+] as const;
+</file>
+
+<file path="src/lib/types.ts">
+export type Registration = {
+  id: string;
+  code: string;
+  sessionToken?: string;
+  emailStatus?: string;
+  accommodation?: string;
+  firstName: string;
+  lastName: string;
+  organisation: string;
+  programmeArea: string;
+  role: string;
+  email: string;
+  phone: string;
+  dietary: string;
+  accessibility: string;
+  travel: string;
+  consent: boolean;
+  createdAt: string;
+  checkedInAt: string | null;
+};
+export type Session = {
+  id: string;
+  day: number;
+  time: string;
+  end: string;
+  title: string;
+  speaker: string;
+  venue: string;
+  type: 'Plenary' | 'Breakout' | 'Workshop' | 'Social' | 'Break';
+  description: string;
+  featured?: boolean;
+};
+export type Note = {
+  ownerId?: string;
+  sessionId?: string;
+  id: string;
+  name: string;
+  organisation: string;
+  text: string;
+  day: number;
+  time: string;
+};
+export type Partner = {
+  id: string;
+  initials: string;
+  name: string;
+  region: string;
+  category: string;
+  tags: string[];
+  since: number;
+  website: string;
+  about: string;
+  contact: string;
+  email: string;
+};
+</file>
+
+<file path="src/lib/validation.ts">
+import { z } from 'zod';
+import { registrationRoles } from './roles';
+const short = z.string().trim().max(160);
+export const registrationSchema = z.object({
+  firstName: short.min(1, 'Enter your first name'),
+  lastName: short.min(1, 'Enter your last name'),
+  organisation: short.min(1, 'Enter your organisation'),
+  programmeArea: short.default(''),
+  role: z.enum(registrationRoles),
+  email: z
+    .email()
+    .max(254)
+    .transform((v) => v.toLowerCase()),
+  phone: z.string().trim().min(1, 'Enter your phone number').max(40),
+  dietary: z.string().trim().max(500).default(''),
+  accessibility: z.string().trim().max(500).default(''),
+  travel: z.string().trim().max(500).default(''),
+  accommodation: z.string().trim().max(500).default(''),
+  consent: z.literal(true, { error: 'Please agree to the privacy policy' }),
+});
+export const noteSchema = z.object({
+  name: short.min(1),
+  organisation: short.min(1),
+  text: z.string().trim().min(5).max(3000),
+  sessionId: z.string().min(1).max(160),
+  day: z.number().int().min(1).max(3),
+});
+export const codeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^OAK-2026-[A-Z0-9-]{8,64}$/);
+</file>
+
+<file path="src/proxy.ts">
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+import { isConfigured } from '@/lib/supabase/config';
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request });
+  if (!isConfigured()) {
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(request.nextUrl.hostname)) {
+      return new NextResponse('Connect Supabase before serving this app on a public host.', {
+        status: 503,
+      });
+    }
+    return response;
+  }
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (values) => {
+          values.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          values.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    },
+  );
+  await supabase.auth.getClaims();
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
+}
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.svg|gallery|.*\\.(?:woff2|png|jpg)$).*)'],
+};
+</file>
+
+<file path="supabase/migrations/001_event_portal.sql">
+-- Run once in Supabase SQL Editor, followed by seed.sql.
+create table if not exists public.staff (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.registrations (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  email text not null unique,
+  data jsonb not null,
+  checked_in_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint valid_email_normalization check (email = lower(email)),
+  constraint valid_registration_data check (jsonb_typeof(data) = 'object')
+);
+create table if not exists public.partners (id text primary key, position integer not null default 0, data jsonb not null);
+create table if not exists public.sessions (id text primary key, position integer not null default 0, data jsonb not null);
+create table if not exists public.notes (id text primary key, data jsonb not null, created_at timestamptz not null default now());
+create table if not exists public.resources (id text primary key, name text not null, storage_path text);
+create index if not exists registrations_checked_in_idx on public.registrations(checked_in_at) where checked_in_at is not null;
+alter table public.staff enable row level security;
+alter table public.registrations enable row level security;
+alter table public.partners enable row level security;
+alter table public.sessions enable row level security;
+alter table public.notes enable row level security;
+alter table public.resources enable row level security;
+-- A user can check their own staff membership, but cannot assign it.
+create policy "Read own staff membership" on public.staff for select to authenticated using (user_id = (select auth.uid()));
+-- Public event content only. Registrations and resource paths have no anon policy.
+create policy "Read partner directory" on public.partners for select to anon, authenticated using (true);
+create policy "Read programme" on public.sessions for select to anon, authenticated using (true);
+create policy "Read shared notes" on public.notes for select to anon, authenticated using (true);
+-- Data changes go through validated Next.js endpoints. Staff endpoints verify membership.
+revoke all on public.staff, public.registrations, public.partners, public.sessions, public.notes, public.resources from anon, authenticated;
+grant select on public.staff to authenticated;
+grant select on public.partners, public.sessions, public.notes to anon, authenticated;
+grant all on public.staff, public.registrations, public.partners, public.sessions, public.notes, public.resources to service_role;
+-- The bucket remains private. Downloads use short-lived signed URLs from the server.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('event-resources', 'event-resources', false, 209715200)
+on conflict (id) do nothing;
+</file>
+
+<file path="supabase/migrations/002_requirements.sql">
+-- Apply after 001_event_portal.sql. QR codes belong only to Partners.
+alter table public.registrations alter column code drop not null;
+update public.registrations set data=jsonb_set(data,'{role}','"Presenter"') where data->>'role'='Speaker';
+update public.registrations set data=jsonb_set(data,'{role}','"Coordination Team"') where data->>'role'='Facilitator';
+update public.registrations set data=jsonb_set(data,'{role}','"Observer"') where data->>'role'='Guest';
+update public.registrations set code=null, data=jsonb_set(data,'{code}','""') where data->>'role'<>'Partner';
+create unique index if not exists registration_session_idx on public.registrations ((data->>'sessionToken')) where data ? 'sessionToken';
+-- All content access now goes through role-checked Next.js routes.
+drop policy if exists "Read shared notes" on public.notes;
+drop policy if exists "Read partner directory" on public.partners;
+drop policy if exists "Read programme" on public.sessions;
+revoke select on public.notes, public.partners, public.sessions from anon, authenticated;
+</file>
+
+<file path="supabase/seed.sql">
+-- Reference-derived sample content. Review before a real event.
+-- Day 2/3 schedules and unspecified partner descriptions are illustrative.
+insert into public.partners (id, position, data) values ('osf', 0, '{"id":"osf","initials":"OSF","name":"Open Society Foundations","region":"Global","category":"Foundation","tags":["Democracy","Human Rights","Justice"],"since":2018,"website":"opensocietyfoundations.org","about":"Open Society Foundations builds vibrant and tolerant democracies. OAK partnership covers digital rights and justice initiatives across Eastern Europe and Central Asia.","contact":"Maria Schmidt","email":"m.schmidt@osf.org"}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('aca', 1, '{"id":"aca","initials":"ACA","name":"Africa Climate Alliance","region":"Sub-Saharan Africa","category":"NGO","tags":["Climate Justice","Youth Advocacy"],"since":2020,"website":"africaclimatealliance.org","about":"Connecting communities and advocates working for climate justice across Sub-Saharan Africa.","contact":"Samuel Okafor","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('nec', 2, '{"id":"nec","initials":"NEC","name":"Nordic Evaluation Centre","region":"Northern Europe","category":"Research","tags":["Evaluation","Learning"],"since":2021,"website":"nordicevaluation.org","about":"Supporting evaluation and shared learning to strengthen the impact of philanthropic programmes.","contact":"Dr. Ingrid Holm","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('mrg', 3, '{"id":"mrg","initials":"MRG","name":"MENA Rights Group","region":"Middle East & North Africa","category":"NGO","tags":["Human Rights","Documentation"],"since":2019,"website":"menarights.org","about":"Promoting and protecting fundamental rights across the Middle East and North Africa.","contact":"Fatima Zahra Benali","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('dfi', 4, '{"id":"dfi","initials":"DFI","name":"Digital Frontiers Institute","region":"Global / East Africa","category":"Research","tags":["Digital Rights","Internet Freedom"],"since":2022,"website":"digitalfrontiers.org","about":"Building capacity and sharing knowledge on digital rights and internet freedom.","contact":"Li Wei","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('gal', 5, '{"id":"gal","initials":"GAL","name":"Global Advocacy Lab","region":"Global","category":"NGO","tags":["Communications","Campaigns"],"since":2023,"website":"globaladvocacylab.org","about":"Collaborative approaches to strategic communications and effective advocacy campaigns.","contact":"Rashida Ahmed","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('sp', 6, '{"id":"sp","initials":"SP","name":"Sciences Po Paris","region":"Western Europe","category":"Academic","tags":["Research","Policy"],"since":2020,"website":"sciencespo.fr","about":"Bringing research and public policy perspectives to collaborative philanthropy.","contact":"Pierre-Alain Dubois","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.partners (id, position, data) values ('efg', 7, '{"id":"efg","initials":"EFG","name":"Environmental Funders Group","region":"Europe","category":"Network","tags":["Environment","Climate"],"since":2017,"website":"envfunders.eu","about":"A network for funders to exchange learning and coordinate environmental action.","contact":"Event coordination team","email":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('welcome', 0, '{"id":"welcome","day":1,"time":"08:00","end":"09:00","title":"Registration & Welcome Coffee","speaker":"","venue":"Foyer","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('opening', 1, '{"id":"opening","day":1,"time":"09:00","end":"10:30","title":"Opening Plenary: Pathways to Impact","speaker":"Dr. Helena Moreau · OAK Foundation","venue":"Main Hall A","type":"Plenary","featured":true,"description":"Welcome to the OAK Partner Convening. Explore shared priorities, connect across programmes, and discuss pathways to lasting impact."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('coffee', 2, '{"id":"coffee","day":1,"time":"10:30","end":"10:50","title":"Coffee Break","speaker":"","venue":"Foyer","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('climate', 3, '{"id":"climate","day":1,"time":"10:50","end":"12:00","title":"Thematic Dialogue: Climate Justice & Grantmaking","speaker":"Samuel Okafor · Africa Climate Alliance","venue":"Conference Room B2","type":"Breakout","description":"An exchange on equitable grantmaking, community-led climate action and youth advocacy."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('learning', 4, '{"id":"learning","day":1,"time":"10:50","end":"12:00","title":"Learning Together: Evidence & Impact","speaker":"Dr. Ingrid Holm · Nordic Evaluation Centre","venue":"Workshop Room C","type":"Workshop","description":"Share evaluation methods and practical approaches to learning across the portfolio."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('lunch', 5, '{"id":"lunch","day":1,"time":"12:00","end":"13:30","title":"Networking Lunch","speaker":"","venue":"Dining Room","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('rights', 6, '{"id":"rights","day":1,"time":"13:30","end":"14:30","title":"Partner Spotlight: Rights-Based Approaches","speaker":"Fatima Zahra Benali · MENA Rights Group","venue":"Main Hall A","type":"Plenary","description":"Partner perspectives on putting rights at the centre of programme design and advocacy."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('digital', 7, '{"id":"digital","day":1,"time":"14:45","end":"16:00","title":"Digital Rights in Authoritarian Contexts","speaker":"Li Wei · Digital Frontiers Institute","venue":"Conference Room B1","type":"Breakout","description":"Practical collaboration on digital rights in restricted environments."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('dinner', 8, '{"id":"dinner","day":1,"time":"18:00","end":"20:00","title":"Welcome Reception & Dinner","speaker":"","venue":"Rooftop Terrace","type":"Social","description":"Meet fellow partners and continue the day’s conversations."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day2-opening', 9, '{"id":"day2-opening","day":2,"time":"09:00","end":"10:30","title":"Shared Learning Across the Portfolio","speaker":"OAK Foundation","venue":"Main Hall A","type":"Plenary","featured":true,"description":"A facilitated exchange on shared learning and collaboration."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day2-coffee', 10, '{"id":"day2-coffee","day":2,"time":"10:30","end":"11:00","title":"Coffee Break","speaker":"","venue":"Foyer","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('communications', 11, '{"id":"communications","day":2,"time":"11:00","end":"12:00","title":"Strategic Communications Workshop","speaker":"Rashida Ahmed · Global Advocacy Lab","venue":"Workshop Room C","type":"Workshop","description":"Explore adaptive messaging and campaign planning."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day2-lunch', 12, '{"id":"day2-lunch","day":2,"time":"12:00","end":"13:30","title":"Networking Lunch","speaker":"","venue":"Dining Room","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('fishbowl', 13, '{"id":"fishbowl","day":2,"time":"13:30","end":"15:00","title":"Fishbowl: Long-Term Philanthropy","speaker":"Pierre-Alain Dubois · Sciences Po Paris","venue":"Main Hall A","type":"Plenary","description":"Discuss longer time horizons, shared learning and systemic change."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('collaboration', 14, '{"id":"collaboration","day":2,"time":"15:15","end":"16:30","title":"Partner Collaboration Labs","speaker":"Convening facilitators","venue":"Conference Room B2","type":"Breakout","description":"Identify shared priorities and potential cross-programme collaborations."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day2-reflections', 15, '{"id":"day2-reflections","day":2,"time":"16:30","end":"17:00","title":"Daily Reflections","speaker":"OAK Foundation","venue":"Main Hall A","type":"Plenary","description":"Gather insights and questions from the day."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day2-social', 16, '{"id":"day2-social","day":2,"time":"18:00","end":"20:00","title":"Partner Networking Evening","speaker":"","venue":"Rooftop Terrace","type":"Social","description":"An informal evening with convening partners."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day3-opening', 17, '{"id":"day3-opening","day":3,"time":"09:00","end":"10:00","title":"From Learning to Collective Action","speaker":"OAK Foundation","venue":"Main Hall A","type":"Plenary","featured":true,"description":"Turn shared insights into practical next steps."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('action', 18, '{"id":"action","day":3,"time":"10:00","end":"11:00","title":"Action Planning Workshop","speaker":"Convening facilitators","venue":"Workshop Room C","type":"Workshop","description":"Build a practical action plan with your peers."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day3-coffee', 19, '{"id":"day3-coffee","day":3,"time":"11:00","end":"11:15","title":"Coffee Break","speaker":"","venue":"Foyer","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('commitments', 20, '{"id":"commitments","day":3,"time":"11:15","end":"12:00","title":"Partner Commitments & Next Steps","speaker":"Partner representatives","venue":"Main Hall A","type":"Plenary","description":"Share commitments and agree ways to stay connected."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('day3-lunch', 21, '{"id":"day3-lunch","day":3,"time":"12:00","end":"13:00","title":"Networking Lunch","speaker":"","venue":"Dining Room","type":"Break","description":""}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('closing', 22, '{"id":"closing","day":3,"time":"13:00","end":"14:00","title":"Closing Reflections","speaker":"Dr. Helena Moreau · OAK Foundation","venue":"Main Hall A","type":"Plenary","description":"Reflect on the convening and look ahead."}'::jsonb) on conflict (id) do nothing;
+insert into public.sessions (id, position, data) values ('farewell', 23, '{"id":"farewell","day":3,"time":"14:00","end":"15:00","title":"Farewell Coffee & Departures","speaker":"","venue":"Foyer","type":"Social","description":"Say farewell and exchange contact details."}'::jsonb) on conflict (id) do nothing;
+insert into public.notes (id, data) values ('n1', '{"id":"n1","name":"Maria Schmidt","organisation":"Open Society Foundations","day":1,"time":"14:32","text":"The rights-based approaches session surfaced strong demand for a shared learning platform. OSF will follow up with MENA Rights Group on joint programming opportunities in the Mediterranean region."}'::jsonb) on conflict (id) do nothing;
+insert into public.notes (id, data) values ('n2', '{"id":"n2","name":"James Odhiambo","organisation":"OAK Foundation","day":1,"time":"16:50","text":"Digital Rights breakout: participants want a working group to share tools for operating in restricted digital environments. Interested orgs: Digital Frontiers, Access Now, EFF."}'::jsonb) on conflict (id) do nothing;
+insert into public.notes (id, data) values ('n3', '{"id":"n3","name":"Awa Diallo","organisation":"Geneva Secretariat","day":2,"time":"11:15","text":"Strategic communications workshop highly rated. Rashida’s adaptive messaging framework is directly applicable across 60% of the portfolio. Requesting follow-up toolkit."}'::jsonb) on conflict (id) do nothing;
+insert into public.notes (id, data) values ('n4', '{"id":"n4","name":"Pierre-Alain Dubois","organisation":"Sciences Po Paris","day":2,"time":"15:00","text":"Fishbowl revealed consensus: philanthropy needs to accept longer time horizons (10+ years) and better share learning. Key ask: OAK to publish failure cases alongside success stories."}'::jsonb) on conflict (id) do nothing;
+insert into public.resources (id, name) values ('opening-presentation', 'Opening Plenary Presentation') on conflict (id) do nothing;
+insert into public.resources (id, name) values ('portfolio-overview', 'OAK Portfolio Overview 2024–26') on conflict (id) do nothing;
+insert into public.resources (id, name) values ('action-workbook', 'Action Planning Workbook') on conflict (id) do nothing;
+insert into public.resources (id, name) values ('partner-directory', 'Partner Contact Directory') on conflict (id) do nothing;
+insert into public.resources (id, name) values ('photo-gallery', 'Photo Gallery (High Res)') on conflict (id) do nothing;
+</file>
+
+<file path="tests/qr.test.ts">
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import QRCode from 'qrcode';
+import { BinaryBitmap, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from '@zxing/library';
+
+test('entry-pass QR payload can be decoded by the scanner library', () => {
+  const code = 'OAK-2026-12C7C6F47314E4F0037988D8690F88D0';
+  const qr = QRCode.create(code, { errorCorrectionLevel: 'M' });
+  const scale = 8;
+  const margin = 4;
+  const size = (qr.modules.size + margin * 2) * scale;
+  const pixels = new Uint8ClampedArray(size * size).fill(255);
+  for (let y = 0; y < qr.modules.size; y++) {
+    for (let x = 0; x < qr.modules.size; x++) {
+      if (!qr.modules.get(y, x)) continue;
+      for (let dy = 0; dy < scale; dy++) {
+        for (let dx = 0; dx < scale; dx++) {
+          pixels[((y + margin) * scale + dy) * size + (x + margin) * scale + dx] = 0;
+        }
+      }
+    }
+  }
+  const bitmap = new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(pixels, size, size)));
+  assert.equal(new QRCodeReader().decode(bitmap).getText(), code);
+});
+</file>
+
+<file path="tests/validation.test.ts">
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { registrationSchema, codeSchema, noteSchema } from '../src/lib/validation';
+const valid = {
+  firstName: ' Maria ',
+  lastName: 'Schmidt',
+  organisation: 'Example Foundation',
+  role: 'Partner',
+  phone: '+263000000000',
+  email: 'MARIA@EXAMPLE.ORG',
+  consent: true,
+};
+test('registration normalizes contact details', () => {
+  const result = registrationSchema.parse(valid);
+  assert.equal(result.firstName, 'Maria');
+  assert.equal(result.email, 'maria@example.org');
+});
+test('registration accepts exactly the reference roles', () => {
+  for (const role of ['Partner', 'OAK Staff', 'Coordination Team', 'Presenter', 'Observer'])
+    assert.equal(registrationSchema.safeParse({ ...valid, role }).success, true);
+  for (const role of ['', 'Speaker', 'Facilitator', 'Guest'])
+    assert.equal(registrationSchema.safeParse({ ...valid, role }).success, false);
+});
+test('registration rejects missing consent, invalid email, and unrecognised role', () => {
+  for (const patch of [
+    { consent: false },
+    { email: 'not-an-email' },
+    { role: 'admin' },
+    { firstName: '' },
+  ])
+    assert.equal(registrationSchema.safeParse({ ...valid, ...patch }).success, false);
+});
+test('registration caps sensitive free-text fields', () => {
+  assert.equal(registrationSchema.safeParse({ ...valid, dietary: 'a'.repeat(501) }).success, false);
+});
+test('pass codes normalize and reject unrelated codes', () => {
+  assert.equal(codeSchema.parse(' oak-2026-7842-xkph '), 'OAK-2026-7842-XKPH');
+  assert.equal(codeSchema.safeParse('https://malicious.example').success, false);
+});
+test('notes require meaningful text and a valid event day', () => {
+  assert.equal(
+    noteSchema.safeParse({
+      name: 'Maria',
+      organisation: 'Example',
+      text: 'A useful session insight.',
+      day: 4,
+    }).success,
+    false,
+  );
+  assert.equal(
+    noteSchema.safeParse({ name: 'Maria', organisation: 'Example', text: '', day: 1 }).success,
+    false,
+  );
+});
+</file>
+
+<file path=".env.example">
+# Copy this file to .env.local next to package.json.
+# Leave blank for local demo mode. Never use demo mode for real attendee data.
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+# Server-only: never prefix this key with NEXT_PUBLIC_.
+SUPABASE_SECRET_KEY=
+# Partner confirmation email (server-only). Use a verified sender in Resend.
+RESEND_API_KEY=
+EMAIL_FROM=
+</file>
+
+<file path=".gitignore">
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+.data/
+</file>
+
+<file path=".prettierignore">
+node_modules
+.next
+.data
+package-lock.json
+/supabase
+public
+</file>
+
+<file path=".prettierrc.json">
+{ "singleQuote": true, "trailingComma": "all", "printWidth": 100 }
+</file>
+
+<file path="AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="next-env.d.ts">
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+import "./.next/dev/types/routes.d.ts";
+import "./.next/dev/types/root-params.d.ts";
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from 'next';
+const config: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+        ],
+      },
+    ];
+  },
+};
+export default config;
+</file>
+
+<file path="package.json">
+{
+  "name": "oak-foundation-convening",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:smoke": "node scripts/http-smoke.mjs",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.2.8",
+    "@fontsource/quicksand": "^5.2.8",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.95.3",
+    "@zxing/browser": "^0.1.5",
+    "lucide-react": "^0.563.0",
+    "next": "^16.1.6",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "server-only": "^0.0.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^22.19.11",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "prettier": "^3.9.6",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
+</file>
+
+<file path="postcss.config.mjs">
+export default { plugins: { '@tailwindcss/postcss': {} } };
+</file>
+
+<file path="README.md">
+# OAK Foundation event platform
+
+Next.js, TypeScript, Tailwind CSS, Supabase. Event: 9–11 November 2026, Harare (location from the supplied image reference).
+
+## Run locally
+
+Use Node.js 22 or newer. In this folder run:
+
+```sh
+npm install
+npm run build
+npm start
+```
+
+Open http://127.0.0.1:3000. With no Supabase variables, synthetic data is stored in `.data/demo.json` and only localhost is allowed. Register to select your role and open its pages. Use a different email when testing another role.
+
+## Where the pages are
+
+The sidebar and mobile navigation follow the PDF's final access matrix:
+
+| Role                           | After registration | Available pages                                         |
+| ------------------------------ | ------------------ | ------------------------------------------------------- |
+| Partner                        | `/qr-code`         | Registration, My QR Code                                |
+| OAK Staff, Presenter, Observer | `/programme`       | Registration, Programme, Partners                       |
+| Coordination Team              | `/check-in`        | Registration, Check-in, Programme, Partners, Attendance |
+
+Programme is `/programme`, the directory is `/partners`, and the dashboard is `/attendance`. Restricted URLs also check the role on the server. Selecting a role during registration grants that role, as specified by the PDF. A 30-day HttpOnly registration session remembers the current registration in that browser. The random session token is separate from the Partner QR code. Existing pre-update passes do not create a session; previously registered users need an administrator-assisted migration or a fresh test email.
+
+The PDF's page 9 permits Partners in the directory, but its final matrix excludes them. The final matrix is the default used here.
+
+## Connect your Supabase account
+
+1. Create your Supabase project.
+2. In its SQL Editor, run `supabase/migrations/001_event_portal.sql` once, then `supabase/migrations/002_requirements.sql`, then `supabase/seed.sql`. For an existing installation that already ran 001, run only 002; seed content only if needed.
+3. Copy `.env.example` to `.env.local`, in this folder next to `package.json`.
+4. Fill in these values locally from your Supabase project settings:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY=YOUR_SERVER_SECRET_KEY
+RESEND_API_KEY=
+EMAIL_FROM=
+```
+
+The URL and publishable key are browser-safe. `SUPABASE_SECRET_KEY` is server-only. Never give server secrets a `NEXT_PUBLIC_` prefix or paste them into chat. Keep `.env.local` out of source control. Restart the app after changing these values.
+
+5. Optional returning coordinator login: create an Auth user in Supabase and add its UUID to `public.staff` using SQL Editor. In this app, `staff` means Coordination Team access, not the registration role OAK Staff:
+
+```sql
+insert into public.staff(user_id) values ('AUTH_USER_UUID');
+```
+
+Use `/staff` to sign in. Normal participant registration does not require this account setup.
+
+6. Use Supabase Table Editor to replace illustrative programme and partner content. Upload event resources to the private `event-resources` bucket and set the matching `resources.storage_path`. Downloads are signed by the server after checking programme access.
+
+## Partner confirmation emails
+
+Create a Resend account, verify your sending domain, and place its API key in `RESEND_API_KEY` and a verified sender such as `OAK Events <events@yourdomain.org>` in `EMAIL_FROM`. Both are server-only. The registration endpoint sends Partners their registration details and an attached QR PNG using the [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email). No email is sent for other roles. Without configuration or if sending fails, registration remains saved and the QR page tells the participant to download their pass. Live delivery requires your account settings and has not been tested with credentials.
+
+## Included workflows
+
+- Five exact roles, role-aware navigation and protected pages/API routes.
+- Required personal/contact fields; separate travel and accommodation requirements; consent.
+- Partner-only QR display/download and idempotent check-in with original timestamp preserved on repeat scans.
+- Coordination-only attendance counts, rate, role breakdown, participant details, name/organisation search, role/status filters, refresh and polling.
+- Programme schedule/details, private per-session notes with editing and owner checks.
+- Partner directory/details, reference logo initials, website and available contact information.
+
+## Reference content limits
+
+The original boards provide only Day 1's full schedule and eight partner profiles. Day 2/3 details and missing profile descriptions remain illustrative. Official partner logos and some contacts were not supplied, so reference initials and available details are shown. Gallery crops are low resolution. Resource files themselves were not supplied. Replace these event assets before launch.
+
+## Verification and deployment
+
+```sh
+npm test
+npm run build
+npm run test:smoke
+```
+
+The smoke script runs only against the local demo and creates synthetic test registrations and private notes. Deploy to a Next.js server host with HTTPS and the environment values configured. This is not a static-export app. No external database, sender account, or public deployment is provisioned by these source files.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="VERIFICATION.md">
+# Requirements verification
+
+Compared the app with all 12 pages of `OAK Foundation Event Attendance Platform Requirements.pdf` and visually inspected its final access matrix. Used that matrix for the conflicting Partner-directory permission.
+
+Verified on 14 September 2026:
+- Production build and TypeScript checks pass.
+- Seven validation/QR tests pass.
+- Local HTTP smoke workflow passes all five roles and 25 page access checks, coordination-only API access, Partner-only QR generation, original timestamp on duplicate check-in, private note creation/editing, and cross-user note isolation.
+- Browser registration as Coordination Team redirects to Check-in and exposes Check-in, Programme, Partners, and Attendance in desktop/mobile navigation.
+- Attendance role filter correctly narrows the participant list.
+- All four pages load; 400px mobile layout has no horizontal page overflow.
+- Exact role choices and common dropdown styling are retained.
+
+Preview is left as the synthetic Demo Coordinator. Automated requirements test rows/notes were removed; existing user data was retained.
+
+Not verified with external credentials: live Supabase migration/execution and confirmation email delivery. Physical camera scanning was not exercised in this pass. Event resource files, official partner logos and unspecified profile details were not supplied; reference placeholders remain as described in README.md.
+
+New Supabase installations must run migrations 001 and 002, then seed.sql. Existing installations must run migration 002. Email configuration is documented in README.md and .env.example.
+</file>
+
+</files>
