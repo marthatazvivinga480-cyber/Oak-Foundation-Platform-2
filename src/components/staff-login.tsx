@@ -73,8 +73,9 @@ export function StaffLogin({ demo }: { demo: boolean }) {
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
             <p className="muted">
-              Use the staff account provided by your event administrator. Contact them if you need
-              to reset your password.
+              Selecting Coordination Team during registration does not grant staff access.
+              Sign in with an account approved by your event administrator. Contact them if you
+              need access or a password reset.
             </p>
           </form>
         )}

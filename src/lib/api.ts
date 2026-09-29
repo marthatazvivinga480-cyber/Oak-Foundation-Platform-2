@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isConfigured } from './supabase/config';
 import { staffUser } from './repository';
-import { currentRole } from './access';
+import { canCoordinate } from './access';
 export function fail(error: unknown, status = 400) {
   return NextResponse.json(
     { error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' },
@@ -16,6 +16,6 @@ export function guard(request: NextRequest) {
     throw new Error('Request origin is not allowed.');
 }
 export async function requireStaff() {
-  if ((await currentRole()) !== 'Coordination Team')
-    throw new Error('Coordination Team access is required.');
+  if (!(await canCoordinate()))
+    throw new Error('An approved Coordination Team sign-in is required.');
 }

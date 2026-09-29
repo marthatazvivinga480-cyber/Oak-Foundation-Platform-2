@@ -24,7 +24,7 @@ The sidebar and mobile navigation follow the PDF's final access matrix:
 | OAK Staff, Presenter, Observer | `/programme`       | Registration, Programme, Partners                       |
 | Coordination Team              | `/check-in`        | Registration, Check-in, Programme, Partners, Attendance |
 
-Programme is `/programme`, the directory is `/partners`, and the dashboard is `/attendance`. Restricted URLs also check the role on the server. Selecting a role during registration grants that role, as specified by the PDF. A 30-day HttpOnly registration session remembers the current registration in that browser. The random session token is separate from the Partner QR code. Existing pre-update passes do not create a session; previously registered users need an administrator-assisted migration or a fresh test email.
+Programme is `/programme`, the directory is `/partners`, and the dashboard is `/attendance`. Restricted URLs also check the role on the server. Selecting a role during registration records that role. With Supabase connected, Check-in and Attendance require a verified Auth login whose user ID is in public.staff. A self-selected Coordination Team registration does not grant these permissions. Local demo mode retains role-based coordinator access. A 30-day HttpOnly registration session remembers the current registration in that browser. The random session token is separate from the Partner QR code. Existing pre-update passes do not create a session; previously registered users need an administrator-assisted migration or a fresh test email.
 
 The PDF's page 9 permits Partners in the directory, but its final matrix excludes them. The final matrix is the default used here.
 
@@ -45,7 +45,7 @@ EMAIL_FROM=
 
 The URL and publishable key are browser-safe. `SUPABASE_SECRET_KEY` is server-only. Never give server secrets a `NEXT_PUBLIC_` prefix or paste them into chat. Keep `.env.local` out of source control. Restart the app after changing these values.
 
-5. Optional returning coordinator login: create an Auth user in Supabase and add its UUID to `public.staff` using SQL Editor. In this app, `staff` means Coordination Team access, not the registration role OAK Staff:
+5. Required coordinator login for Check-in and Attendance: create an Auth user in Supabase and add its UUID to `public.staff` using SQL Editor. In this app, `staff` means Coordination Team access, not the registration role OAK Staff:
 
 ```sql
 insert into public.staff(user_id) values ('AUTH_USER_UUID');
@@ -82,3 +82,9 @@ npm run test:smoke
 
 The smoke script runs only against the local demo and creates synthetic test registrations and private notes. Deploy to a Next.js server host with HTTPS and the environment values configured. This is not a static-export app. No external database, sender account, or public deployment is provisioned by these source files.
 # Oak-Foundation-Platform-2
+
+## Coordinator access and sign-out
+
+With Supabase connected, approve coordinators by creating an Auth user in the Supabase dashboard and adding that user's UUID to public.staff. Registering with the Coordination Team role alone does not grant scanning or attendance access. Sign in at /staff; the navigation then shows the protected pages. Existing registrations and notes are preserved.
+
+Sign-out clears the browser's oak-session registration cookie and signs out of Supabase Auth. If Auth sign-out fails, the app reports an error instead of claiming that sign-out completed. Save your Partner QR pass before signing out: participant registration sessions do not currently have a self-service recovery flow.

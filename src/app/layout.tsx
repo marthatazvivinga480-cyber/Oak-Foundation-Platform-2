@@ -9,7 +9,7 @@ import './globals.css';
 import { Shell } from '@/components/shell';
 import { isConfigured } from '@/lib/supabase/config';
 import { staffUser } from '@/lib/repository';
-import { currentRole } from '@/lib/access';
+import { currentRole, canCoordinate } from '@/lib/access';
 export const metadata: Metadata = {
   title: { default: 'OAK Foundation | Partner Convening 2026', template: '%s | OAK Foundation' },
   description:
@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
-        <Shell demo={!isConfigured()} role={role}>
+        <Shell demo={!isConfigured()} role={role} coordinator={await canCoordinate()}>
           {children}
         </Shell>
       </body>

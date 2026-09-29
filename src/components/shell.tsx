@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   CalendarDays,
@@ -15,13 +16,16 @@ export function Shell({
   children,
   demo,
   role,
+  coordinator,
 }: {
   children: ReactNode;
   demo: boolean;
   role: string | null;
+  coordinator: boolean;
 }) {
   const path = usePathname();
-  const staff = role === 'Coordination Team';
+  const staff = coordinator;
+  const [signOutError, setSignOutError] = useState('');
   const internal = staff;
   const nav = [
     { href: '/', label: 'Register', icon: UserPlus },
@@ -82,17 +86,24 @@ export function Shell({
               <ShieldCheck size={13} />
               {staff ? 'Staff area' : 'Staff sign-in'}
             </Link>
-            {staff && !demo && (
+            {role && (
               <button
                 onClick={async () => {
-                  await fetch('/api/auth/sign-out', { method: 'POST' });
-                  window.location.href = '/';
+                  setSignOutError('');
+                  try {
+                    const response = await fetch('/api/auth/sign-out', { method: 'POST' });
+                    if (!response.ok) throw new Error();
+                    window.location.href = '/';
+                  } catch {
+                    setSignOutError('Could not finish signing out. Please try again.');
+                  }
                 }}
               >
                 <LogOut size={13} />
                 Sign out
               </button>
             )}
+            {signOutError && <p role="alert">{signOutError}</p>}
           </footer>
         </main>
       </div>
